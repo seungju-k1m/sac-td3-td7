@@ -50,4 +50,4 @@ def sac(
     np.random.seed(seed)
     exp_dir = SAVE_DIR / exp_name
     os.makedirs(exp_dir, exist_ok=True)
-    run_sac(env_id, exp_dir, seed=seed, **agent_kwargs)
+    run_sac(env_id, exp_dir, **agent_kwargs)
