@@ -1,8 +1,8 @@
 from typing import Literal
 
 import torch
-import gymnasium as gym
 from torch import nn
+import gymnasium as gym
 
 from rl.core.agent import Agent
 from rl.core.sampler import Sampler
@@ -36,7 +36,7 @@ class SAC(Agent, Sampler):
         self.action_fn = action_fn
         self.auto_tmp_mode = True if tmp == "auto" else False
         self.tmp = (
-            nn.Parameter(torch.ones(1).float(), requires_grad=True)
+            nn.Parameter(torch.zeros(1).float(), requires_grad=True)
             if self.auto_tmp_mode
             else tmp
         )
@@ -63,11 +63,11 @@ class SAC(Agent, Sampler):
         self.q2 = make_feedforward(
             obs_dim + action_dim, 1, self.hidden_sizes, self.action_fn, True
         )
-        self.value_fn = make_feedforward(
-            obs_dim, 1, self.hidden_sizes, self.action_fn, True
+        self.target_q1 = make_feedforward(
+            obs_dim + action_dim, 1, self.hidden_sizes, self.action_fn, True
         )
-        self.target_value_fn = make_feedforward(
-            obs_dim, 1, self.hidden_sizes, self.action_fn, True
+        self.target_q2 = make_feedforward(
+            obs_dim + action_dim, 1, self.hidden_sizes, self.action_fn, True
         )
 
     def make_optimizers(self, policy_lr: float, critic_lr: float) -> None:
@@ -75,21 +75,18 @@ class SAC(Agent, Sampler):
         self.optim_q_fns = torch.optim.Adam(
             list(self.q1.parameters()) + list(self.q2.parameters()), lr=critic_lr
         )
-        self.optim_value = torch.optim.Adam(self.value_fn.parameters(), lr=policy_lr)
         if self.auto_tmp_mode:
             self.optim_tmp = torch.optim.Adam([self.tmp], lr=policy_lr)
 
     def zero_grad(self) -> None:
         self.optim_q_fns.zero_grad()
         self.optim_policy.zero_grad()
-        self.optim_value.zero_grad()
         if self.auto_tmp_mode:
             self.optim_tmp.zero_grad()
 
     def step(self) -> None:
         self.optim_q_fns.step()
         self.optim_policy.step()
-        self.optim_value.step()
         if self.auto_tmp_mode:
             self.optim_tmp.step()
 
@@ -118,8 +115,16 @@ class SAC(Agent, Sampler):
         # make q target
         with torch.no_grad():
             # next_value = self.target_value_fn.forward(next_obs)
-            next_value = self.target_value_fn(next_obs)
-            q_target = reward / self.tmp + self.discount_factor * next_value * done
+            next_action, next_log_pi = self.policy_forward(next_obs)[:2]
+            next_obs_action = torch.cat((next_obs, next_action), -1)
+            next_value = torch.min(
+                self.target_q1.forward(next_obs_action),
+                self.target_q2.forward(next_obs_action),
+            )
+            tmp = self.tmp.exp() if self.auto_tmp_mode else self.tmp
+            q_target = (
+                reward + self.discount_factor * (next_value - tmp * next_log_pi) * done
+            )
         # calculate q value
         obs_action = torch.cat((obs, action), 1)
         q1, q2 = self.q1.forward(obs_action), self.q2.forward(obs_action)
@@ -132,31 +137,27 @@ class SAC(Agent, Sampler):
         self, obs: OBSERVATION, **kwargs
     ) -> tuple[torch.Tensor, torch.Tensor | float]:
         """Policy ops."""
+        # Calculate policy loss.
         action, log_pi, (mean, log_std) = self.policy_forward(obs)
         obs_action = torch.cat((obs, action), -1)
-        # with torch.no_grad():
         q1, q2 = self.q1.forward(obs_action), self.q2.forward(obs_action)
         q_value = torch.min(q1, q2)
-        # q_value = self.q1.forward(obs_action)
-        policy_loss = torch.mean(-q_value + log_pi)
-        tmp_loss = 0.0
-        if self.auto_tmp_mode:
-            tmp_loss = torch.mean(self.tmp.exp() * (-log_pi.detach() + self.action_dim))
-        # Value at given observation with current and target.
-        policy_reg = 0.5 * (torch.mean(log_std**2) + torch.mean(mean**2))
-        return policy_loss, tmp_loss, policy_reg
+        tmp = self.tmp.exp().detach() if self.auto_tmp_mode else self.tmp
+        policy_loss = torch.mean(-q_value + log_pi * tmp)
 
-    def _value_ops(self, obs: OBSERVATION, **kwargs) -> torch.Tensor:
-        value = self.value_fn(obs)
-        action, log_pi = self.policy_forward(obs)[:2]
-        obs_action = torch.cat((obs, action), -1)
-        q1, q2 = self.q1(obs_action), self.q2(obs_action)
-        qvalue = torch.min(q1, q2)
-        target = qvalue - (
-            log_pi - self.policy_prior.log_prob(action).sum(-1, keepdim=True)
+        # Calcuate tmp loss.
+        tmp_loss = (
+            torch.mean(self.tmp.exp() * (-log_pi.detach() + self.action_dim))
+            if self.auto_tmp_mode
+            else 0.0
         )
-        value_loss = torch.mean((value - target.detach()).pow(2.0))
-        return value_loss
+
+        # Entropy for logging.
+        entropy = -(log_pi.mean().detach())
+
+        # Regularizer for policy and logging.
+        policy_reg = 0.5 * (torch.mean(log_std**2) + torch.mean(mean**2))
+        return policy_loss, tmp_loss, policy_reg, entropy
 
     def sample(self, obs: OBSERVATION, deterministic: bool = False, **kwargs) -> ACTION:
         with torch.no_grad():
@@ -175,24 +176,15 @@ class SAC(Agent, Sampler):
     @torch.no_grad()
     def update_target_value_fn(self) -> None:
         """Update target value function."""
-        for v_parm, target_v_param in zip(
-            self.value_fn.parameters(), self.target_value_fn.parameters()
-        ):
-            target_v_param.copy_(self.tau * v_parm + target_v_param * (1 - self.tau))
+        for q_parm, t_q_parm in zip(self.q1.parameters(), self.target_q1.parameters()):
+            t_q_parm.copy_(self.tau * q_parm + t_q_parm * (1 - self.tau))
+        for q_parm, t_q_parm in zip(self.q2.parameters(), self.target_q2.parameters()):
+            t_q_parm.copy_(self.tau * q_parm + t_q_parm * (1 - self.tau))
 
     def train_ops(self, batch: BATCH, *args, **kwargs) -> None:
         # Update state value function.
         info = {}
         max_norm = float("inf")
-        # max_norm = 1
-        value_loss = self._value_ops(**batch)
-        value_loss.backward()
-        info["norm/value"] = calculate_grad_norm(self.value_fn)
-        clip_grad_norm(self.value_fn, max_norm)
-        self.optim_value.step()
-        self.zero_grad()
-        info["loss/value"] = float(value_loss.cpu().detach().numpy())
-
         # Update Action-State value function.
         q_value_loss = self._q_value_ops(**batch)
         q_value_loss.backward()
@@ -205,25 +197,28 @@ class SAC(Agent, Sampler):
         info["loss/q_value"] = float(q_value_loss.cpu().detach().numpy())
 
         # Update policy.
-        policy_loss, tmp_loss, policy_reg = self._policy_ops(**batch)
-        # loss = policy_loss + policy_reg
+        policy_loss, tmp_loss, policy_reg, entropy = self._policy_ops(**batch)
         loss = policy_loss + self.policy_reg_coeff * policy_reg
         if self.auto_tmp_mode:
             loss += tmp_loss
         loss.backward()
         info["norm/policy"] = calculate_grad_norm(self.policy)
         clip_grad_norm(self.policy, max_norm)
+
+        # Update temperatgure.
         if self.auto_tmp_mode:
-            info["tmp"] = float(self.tmp.data.detach().cpu().numpy())
+            info["tmp"] = float(self.tmp.exp().data.detach().cpu().numpy())
         self.optim_policy.step()
         if self.auto_tmp_mode:
             self.optim_tmp.step()
         self.zero_grad()
+        # Logging
         info["loss/policy"] = float(policy_loss.cpu().detach().numpy())
         info["loss/policy_reg"] = float(policy_reg.cpu().detach().numpy())
         if self.auto_tmp_mode:
             info["loss/tmp"] = float(tmp_loss.cpu().detach().numpy())
 
+        info["entropy"] = float(entropy.cpu().detach().numpy())
         # Update target network.
         self.update_target_value_fn()
 
