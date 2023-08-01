@@ -38,7 +38,7 @@ class Agent(ABC):
 
     def save(self, path: PATH) -> None:
         """Save the algorithm."""
-        path = Path(path) if isinstance(str) else path
+        path = Path(path) if isinstance(path, str) else path
         dir = path.parent
         os.makedirs(dir, exist_ok=True)
         with open(path, "wb") as file_handler:

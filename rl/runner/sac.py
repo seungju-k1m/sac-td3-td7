@@ -1,13 +1,15 @@
-from copy import deepcopy
 import json
+from copy import deepcopy
 from pathlib import Path
+
 import gymnasium as gym
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+
 from rl.agent.sac import SAC
-from rl.core.logger import setup_logger
 from rl.core.sampler import Rollout
+from rl.core.logger import setup_logger
 from rl.utils.miscellaneous import convert_dict_as_param
 
 
@@ -59,6 +61,7 @@ def run_sac(
     agent = SAC(env, **agent_kwargs)
     n_transition: int = 0
     init_logger = False
+    best_performance = 0.0
     for epoch in tqdm(range(n_epochs)):
         infos: list[dict] = list()
         for _ in range(epoch_length):
@@ -83,8 +86,7 @@ def run_sac(
                 train_logger.info(
                     ", ".join(
                         ["epoch"]
-                        + sorted(list(logging_info.keys()))
-                        + sorted(list(test_info.keys()))
+                        + sorted(list(logging_info.keys()) + list(test_info.keys()))
                     )
                 )
             logging_info.update(test_info)
@@ -93,3 +95,6 @@ def run_sac(
                 [f"{value:.4f}" for value in logging_info.values()]
             )
             train_logger.info(f"{epoch}, {stats_string}")
+            if test_info["perf/mean"] > best_performance:
+                best_performance = test_info["perf/mean"]
+                agent.save(exp_dir / "best.pkl")
