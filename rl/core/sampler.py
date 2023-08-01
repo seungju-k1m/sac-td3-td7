@@ -1,7 +1,8 @@
+import random
 from abc import ABC
 from copy import deepcopy
-from random import choices
 from typing import TypeVar
+
 import gymnasium as gym
 import numpy as np
 import torch
@@ -42,7 +43,7 @@ class Rollout:
         self.sampler = sampler
 
     def get_batch(self, batch_size: int, use_torch: bool = True) -> BATCH:
-        transitions = choices(self.replay_buffer, k=batch_size)
+        transitions = random.sample(self.replay_buffer, batch_size)
         obs: OBSERVATION = np.stack(list(map(lambda x: x[0], transitions)), 0)
         action: ACTION = np.stack(list(map(lambda x: x[1], transitions)), 0)
         reward: REWARD = (
