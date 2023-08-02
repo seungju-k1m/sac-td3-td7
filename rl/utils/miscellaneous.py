@@ -1,5 +1,8 @@
-from pathlib import PosixPath
+import json
 from typing import Any
+from pathlib import PosixPath
+
+import click
 
 
 def convert_dict_as_param(d_str_value: dict[str, Any]) -> dict[str, Any]:
@@ -14,3 +17,10 @@ def convert_dict_as_param(d_str_value: dict[str, Any]) -> dict[str, Any]:
         else:
             param.update(value)
     return param
+
+
+def configure(ctx: click.core.Context, param: click.core.Option, path: str):
+    """Configure."""
+    with open(path) as file_handler:
+        options = json.load(file_handler)
+    ctx.default_map = options
