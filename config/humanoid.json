@@ -1,0 +1,6 @@
+{
+    "exp_name": "default",
+    "env_id": "Humanoid-v4",
+    "auto_tmp": false,
+    "replay_buffer_size":3000000
+}

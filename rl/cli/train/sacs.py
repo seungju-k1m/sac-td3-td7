@@ -1,6 +1,7 @@
 import ray
 import json
 import click
+from copy import deepcopy
 
 from rl.runner.sac import run_sac
 
@@ -19,8 +20,9 @@ def sacs(
         default_config = json.load(file_handler)
     for path in config:
         with open(path) as file_handler:
-            experiment = json.load(file_handler)
-            experiment.update(default_config)
+            experiment = deepcopy(default_config)
+            _experiment = json.load(file_handler)
+            experiment.update(_experiment)
             experiments.append(experiment)
     n_experiment = len(experiments)
     if n_experiment > 1:
