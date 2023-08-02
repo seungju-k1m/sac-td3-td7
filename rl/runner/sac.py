@@ -1,6 +1,7 @@
 import os
 import json
 import random
+from time import time
 from copy import deepcopy
 
 import torch
@@ -72,11 +73,12 @@ def run_sac(
     env = gym.make(env_id)
     eval_env = gym.make(env_id)
     rollout = Rollout(env, replay_buffer_size)
-    agent = SAC(env, **agent_kwargs)
+    agent = SAC(env, tmp=tmp, **agent_kwargs)
     n_transition: int = 0
     init_logger = False
     best_performance = 0.0
     iterator = tqdm(range(n_epochs)) if print_mode else range(n_epochs)
+    start_time = time()
     for epoch in iterator:
         infos: list[dict] = list()
         for _ in range(epoch_length):
@@ -101,14 +103,16 @@ def run_sac(
                 train_logger.info(
                     ", ".join(
                         ["epoch"]
-                        + sorted(list(logging_info.keys()) + list(test_info.keys()))
+                        + sorted(list(logging_info.keys()) + list(test_info.keys())) + ["elasped_time"]
                     )
                 )
             logging_info.update(test_info)
             logging_info = {key: value for key, value in sorted(logging_info.items())}
+            elasped_time = time() - start_time
             stats_string = ", ".join(
                 [f"{value:.4f}" for value in logging_info.values()]
             )
+            stats_string = stats_string + f", {elasped_time:.1f}"
             train_logger.info(f"{epoch}, {stats_string}")
             if test_info["perf/mean"] > best_performance:
                 best_performance = test_info["perf/mean"]

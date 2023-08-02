@@ -1,5 +1,5 @@
 {
-    "exp_name": "default",
+    "exp_name": "auto",
     "env_id": "Hopper-v4",
     "auto_tmp": true
 }
