@@ -1,18 +1,28 @@
-import os
 import click
-import torch
-import random
-import numpy as np
-from rl import SAVE_DIR
 
 from rl.runner.sac import run_sac
+from rl.utils.miscellaneous import configure
+
+
+default_cfg_path = "config/hopper.json"
 
 
 @click.command()
 @click.option(
+    "-c",
+    "--config",
+    type=click.Path(dir_okay=False),
+    default=default_cfg_path,
+    callback=configure,
+    is_eager=True,
+    expose_value=False,
+    help="Read option defaults from the specified INI file",
+    show_default=True,
+)
+@click.option(
     "--exp-name",
     type=click.STRING,
-    required=True,
+    # required=True,
     help="The experiment-name for logging.",
 )
 @click.option(
@@ -49,20 +59,6 @@ from rl.runner.sac import run_sac
     show_default=True,
 )
 @click.option("--seed", type=click.INT, default=777, help="Seed", show_default=True)
-def sac(
-    exp_name: str,
-    env_id: str,
-    seed: int,
-    auto_tmp: bool,
-    tmp: float,
-    **agent_kwargs,
-) -> None:
+def sac(**agent_kwargs) -> None:
     """Soft Actor Critic."""
-    # Fix seed.
-    torch.manual_seed(seed)
-    random.seed(seed)
-    np.random.seed(seed)
-    exp_dir = SAVE_DIR / env_id / exp_name
-    os.makedirs(exp_dir, exist_ok=True)
-    tmp = "auto" if auto_tmp else tmp
-    run_sac(env_id, exp_dir, tmp=tmp, **agent_kwargs)
+    run_sac(print_mode=True, **agent_kwargs)

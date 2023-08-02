@@ -1,12 +1,15 @@
+import os
 import json
+import random
 from copy import deepcopy
-from pathlib import Path
 
-import gymnasium as gym
+import torch
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+import gymnasium as gym
 
+from rl import SAVE_DIR
 from rl.agent.sac import SAC
 from rl.core.sampler import Rollout
 from rl.core.logger import setup_logger
@@ -22,7 +25,6 @@ def test_agent(
         obs, _ = env.reset(seed=np.random.randint(1, 10000000))
         rewards = []
         flag = True
-        # for j in range(1000):
         while flag:
             action = agent.sample(obs, deterministic)
             next_obs, reward, terminated, done, _ = env.step(action)
@@ -39,19 +41,31 @@ def test_agent(
 
 def run_sac(
     env_id: str,
-    exp_dir: Path,
+    exp_name: str,
     n_epochs: int = 1000,
     epoch_length: int = 1000,
     n_inital_exploration_steps: int = 10_000,
     batch_size: int = 256,
     replay_buffer_size: int = 1_000_000,
+    seed: int = 777,
+    auto_tmp: bool = False,
+    tmp: float = 0.2,
+    print_mode: bool = False,
     **agent_kwargs,
 ) -> None:
     """Run SAC Algorithm."""
+    exp_dir = SAVE_DIR / env_id / exp_name
+    os.makedirs(exp_dir, exist_ok=True)
+    tmp = "auto" if auto_tmp else tmp
+    # Set seed
+    torch.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
     params = convert_dict_as_param(deepcopy(locals()))
-    print("-" * 5 + "[SAC]" + "-" * 5)
-    print(" " + pd.Series(params).to_string().replace("\n", "\n "))
-    print()
+    if print_mode:
+        print("-" * 5 + "[SAC]" + "-" * 5)
+        print(" " + pd.Series(params).to_string().replace("\n", "\n "))
+        print()
     with open(exp_dir / "config.json", "w") as file_handler:
         json.dump(params, file_handler, indent=4)
     train_logger = setup_logger(str(exp_dir / "training.log"))
@@ -62,7 +76,8 @@ def run_sac(
     n_transition: int = 0
     init_logger = False
     best_performance = 0.0
-    for epoch in tqdm(range(n_epochs)):
+    iterator = tqdm(range(n_epochs)) if print_mode else range(n_epochs)
+    for epoch in iterator:
         infos: list[dict] = list()
         for _ in range(epoch_length):
             rollout.sample()
