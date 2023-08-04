@@ -23,14 +23,16 @@ def make_feedforward(
     hidden_sizes: list[int],
     act_fn: str | None = None,
     skip_last_act: bool = False,
+    device: str | torch.device = "mps",
 ) -> nn.Module:
     """Make FeedForward neural network."""
+    device = torch.device(device) if isinstance(device, str) else device
     act_fn = getattr(nn, act_fn)() if isinstance(act_fn, str) else act_fn
-    input_hidden_sizes = [input_dim] + hidden_sizes[:-1]
-    output_hidden_sizes = hidden_sizes[1:] + [output_dim]
+    input_hidden_sizes = [input_dim] + hidden_sizes
+    output_hidden_sizes = hidden_sizes + [output_dim]
     _nns: list[nn.Module] = list()
     for input_hs, output_hs in zip(input_hidden_sizes, output_hidden_sizes):
-        linear = nn.Linear(input_hs, output_hs)
+        linear = nn.Linear(input_hs, output_hs).to(device)
         nn.init.xavier_normal_(linear.weight.data)
         nn.init.zeros_(linear.bias.data)
         _nns.append(linear)

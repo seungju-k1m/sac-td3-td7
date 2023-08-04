@@ -1,20 +1,16 @@
-import os
-import json
 import random
 from time import time
-from copy import deepcopy
+from pathlib import Path
+from logging import Logger
 
 import torch
 import numpy as np
-import pandas as pd
-from tqdm import tqdm
 import gymnasium as gym
+from tqdm import tqdm
+from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
 
-from rl import SAVE_DIR
 from rl.agent.sac import SAC
 from rl.core.sampler import Rollout
-from rl.core.logger import setup_logger
-from rl.utils.miscellaneous import convert_dict_as_param
 
 
 def test_agent(
@@ -23,7 +19,7 @@ def test_agent(
     """."""
     returns = []
     for _ in range(n_episode):
-        obs, _ = env.reset(seed=np.random.randint(1, 10000000))
+        obs, _ = env.reset(seed=np.random.randint(1, 100000000000))
         rewards = []
         flag = True
         while flag:
@@ -40,11 +36,13 @@ def test_agent(
     return info
 
 
-def run_sac(
-    env_id: str,
-    exp_name: str,
-    n_epochs: int = 1000,
-    epoch_length: int = 1000,
+def run_rl(
+    env: RecordEpisodeStatistics,
+    eval_env: gym.Env,
+    exp_dir: Path,
+    logger: Logger,
+    n_epochs: int = 1_000,
+    epoch_length: int = 1_000,
     n_inital_exploration_steps: int = 10_000,
     batch_size: int = 256,
     replay_buffer_size: int = 1_000_000,
@@ -52,68 +50,77 @@ def run_sac(
     auto_tmp: bool = False,
     tmp: float = 0.2,
     print_mode: bool = False,
+    n_eval: int = 10,
+    device: str = "cpu",
     **agent_kwargs,
 ) -> None:
     """Run SAC Algorithm."""
-    exp_dir = SAVE_DIR / env_id / exp_name
-    os.makedirs(exp_dir, exist_ok=True)
     tmp = "auto" if auto_tmp else tmp
     # Set seed
     torch.manual_seed(seed)
     random.seed(seed)
     np.random.seed(seed)
-    params = convert_dict_as_param(deepcopy(locals()))
-    if print_mode:
-        print("-" * 5 + "[SAC]" + "-" * 5)
-        print(" " + pd.Series(params).to_string().replace("\n", "\n "))
-        print()
-    with open(exp_dir / "config.json", "w") as file_handler:
-        json.dump(params, file_handler, indent=4)
-    train_logger = setup_logger(str(exp_dir / "training.log"))
-    env = gym.make(env_id)
-    eval_env = gym.make(env_id)
-    rollout = Rollout(env, replay_buffer_size)
-    agent = SAC(env, tmp=tmp, **agent_kwargs)
-    n_transition: int = 0
+    rollout = Rollout(env, replay_buffer_size, device)
+    agent = SAC(
+        env.action_space.shape[-1],
+        env.observation_space.shape[-1],
+        tmp=tmp,
+        device=device,
+        **agent_kwargs,
+    )
     init_logger = False
     best_performance = 0.0
     iterator = tqdm(range(n_epochs)) if print_mode else range(n_epochs)
     start_time = time()
+    infos: list[dict] = list()
     for epoch in iterator:
-        infos: list[dict] = list()
         for _ in range(epoch_length):
             rollout.sample()
-            n_transition += 1
-            if n_transition == n_inital_exploration_steps:
+            if len(rollout.replay_buffer) > n_inital_exploration_steps:
                 rollout.set_sampler(agent)
-            if n_transition < n_inital_exploration_steps:
+            else:
                 continue
             batch = rollout.get_batch(batch_size)
             info = agent.train_ops(batch)
             infos.append(info)
-        if len(infos) > 0:
+        if len(infos) >= epoch_length * 5:
             keies = list(infos[0].keys())
             logging_info = {
                 key: sum(list(map(lambda x: x[key], infos))) / len(infos)
                 for key in keies
             }
-            test_info = test_agent(eval_env, agent, 8)
+            rollout_info = {
+                "rollout/returns": float(
+                    sum(rollout.env.return_queue) / len(rollout.env.return_queue)
+                ),
+                "rollout/episode_length": float(
+                    sum(rollout.env.length_queue) / len(rollout.env.length_queue)
+                ),
+            }
+            test_info = test_agent(eval_env, agent, n_eval)
             if not init_logger:
                 init_logger = True
-                train_logger.info(
+                logger.info(
                     ", ".join(
                         ["epoch"]
-                        + sorted(list(logging_info.keys()) + list(test_info.keys())) + ["elasped_time"]
+                        + sorted(
+                            list(logging_info.keys())
+                            + list(test_info.keys())
+                            + list(rollout_info.keys())
+                        )
+                        + ["elasped_time"]
                     )
                 )
             logging_info.update(test_info)
+            logging_info.update(rollout_info)
             logging_info = {key: value for key, value in sorted(logging_info.items())}
             elasped_time = time() - start_time
             stats_string = ", ".join(
                 [f"{value:.4f}" for value in logging_info.values()]
             )
             stats_string = stats_string + f", {elasped_time:.1f}"
-            train_logger.info(f"{epoch}, {stats_string}")
+            logger.info(f"{epoch}, {stats_string}")
             if test_info["perf/mean"] > best_performance:
                 best_performance = test_info["perf/mean"]
                 agent.save(exp_dir / "best.pkl")
+            infos.clear()

@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import TypeVar
 
 import gymnasium as gym
+from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
 import numpy as np
 import torch
 
@@ -27,16 +28,20 @@ class RandomSampler(Sampler):
 
 
 class Rollout:
-    def __init__(self, env: gym.Env, replay_buffer_size: int = 1_000_000):
+    def __init__(
+        self,
+        env: RecordEpisodeStatistics,
+        replay_buffer_size: int = 1_000_000,
+        device: str = "mps",
+    ):
         self.env = env
         self.replay_buffer: list[TRANSITION] = list()
         self.count_replay_buffer: int = 0
         self.replay_buffer_size: int = replay_buffer_size
         self.sampler = RandomSampler(self.env.action_space)
         self.need_reset = True
-        self.obs: OBSERVATION
-        self._returns: list[float] = list()
-        self._rewards: list[float] = list()
+        self.obs: OBSERVATION = self.env.reset()[0]
+        self.device = torch.device(device)
 
     def set_sampler(self, sampler: SAMPLER) -> None:
         """Set sampler."""
@@ -44,6 +49,7 @@ class Rollout:
 
     def get_batch(self, batch_size: int, use_torch: bool = True) -> BATCH:
         transitions = random.sample(self.replay_buffer, batch_size)
+
         obs: OBSERVATION = np.stack(list(map(lambda x: x[0], transitions)), 0)
         action: ACTION = np.stack(list(map(lambda x: x[1], transitions)), 0)
         reward: REWARD = (
@@ -58,46 +64,31 @@ class Rollout:
             .reshape(-1, 1)
         )
         if use_torch:
-            obs = torch.Tensor(obs)
-            action = torch.Tensor(action)
-            reward = torch.Tensor(reward)
-            next_obs = torch.Tensor(next_obs)
-            done = torch.Tensor(done)
+            obs = torch.Tensor(obs).to(self.device)
+            action = torch.Tensor(action).to(self.device)
+            reward = torch.Tensor(reward).to(self.device)
+            next_obs = torch.Tensor(next_obs).to(self.device)
+            done = torch.Tensor(done).to(self.device)
         return dict(obs=obs, action=action, reward=reward, next_obs=next_obs, done=done)
 
     def sample(self) -> None:
-        if self.need_reset:
-            obs, _ = self.env.reset(seed=np.random.randint(1, 100000000))
-            self.need_reset = False
-        else:
-            obs = deepcopy(self.obs)
-        action = self.sampler.sample(obs)
-        next_obs, reward, terminated, done, _ = self.env.step(action)
-        self._rewards.append(reward)
-        _done = done or terminated
-        float_done = 1.0 - float(_done)
-        self.replay_buffer.append(
-            deepcopy(
-                [
-                    obs.astype(np.float32),
-                    action.astype(np.float32),
-                    reward,
-                    next_obs.astype(np.float32),
-                    float_done,
-                ]
-            )
-        )
-        self.count_replay_buffer += 1
+        obs = deepcopy(self.obs)
+        n_dim = obs.shape[0]
+        action = self.sampler.sample(obs).reshape(n_dim, -1)
+        next_obs, reward, terminated, done, info = self.env.step(action)
+        _done = done + terminated
+        float_done = 1.0 - _done.astype(np.float32)
+        obs = obs.astype(np.float32)
+        next_obs = next_obs.astype(np.float32)
+        action = action.astype(np.float32)
+        self.replay_buffer += [
+            [o, a, r, n, d]
+            for o, a, r, n, d in zip(obs, action, reward, next_obs, float_done)
+        ]
+        self.count_replay_buffer += len(action)
         self.obs = next_obs
-        if _done:
-            self.need_reset = True
-            self._returns.append(sum(self._rewards))
-            self._rewards.clear()
         if self.count_replay_buffer > self.replay_buffer_size:
             self.replay_buffer.pop(0)
-            self.count_replay_buffer -= 1
-
-    def print(self) -> None:
-        """."""
-        print(sum(self._returns) / (len(self._returns) + 1e-6))
-        self._returns.clear()
+            for _ in range(len(action)):
+                self.replay_buffer.pop(0)
+            self.count_replay_buffer -= len(action)

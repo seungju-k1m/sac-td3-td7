@@ -3,20 +3,20 @@ import json
 import click
 from copy import deepcopy
 
-from rl.runner.sac import run_sac
+from rl.runner.metaworld import run_metaworld
 
 
 @click.command()
 @click.option(
     "-c", "--config", multiple=True, type=click.Path(exists=True), required=True
 )
-def sacs(
+def metaworld(
     config: tuple[str],
 ) -> None:
     """Soft Actor Critic."""
     # Fix seed.
     experiments: list[dict] = list()
-    with open("config/default.json") as file_handler:
+    with open("config/metaworld/default.json") as file_handler:
         default_config = json.load(file_handler)
     for path in config:
         with open(path) as file_handler:
@@ -27,10 +27,10 @@ def sacs(
     n_experiment = len(experiments)
     if n_experiment > 1:
         ray.init()
-        remote_run_sac = ray.remote(run_sac)
+        remote_run_sac = ray.remote(run_metaworld)
         ray_objs = [remote_run_sac.remote(**experiment) for experiment in experiments]
         ray.get(ray_objs)
     else:
         experiment = experiments[0]
         experiment["print_mode"] = True
-        run_sac(**experiment)
+        run_metaworld(**experiment)
