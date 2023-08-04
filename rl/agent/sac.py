@@ -1,8 +1,8 @@
+from copy import deepcopy
 from typing import Literal
 
 import torch
 from torch import nn
-import gymnasium as gym
 
 from rl.core.agent import Agent
 from rl.core.sampler import Sampler
@@ -17,7 +17,8 @@ from rl.utils.annotation import ACTION, BATCH, DONE, EPS, OBSERVATION, REWARD
 class SAC(Agent, Sampler):
     def __init__(
         self,
-        env: str | gym.Env,
+        action_dim: int,
+        obs_dim: int,
         discount_factor: float = 0.99,
         hidden_sizes: list[int] = [256, 256],
         action_fn: str | nn.Module = "ReLU",
@@ -29,14 +30,17 @@ class SAC(Agent, Sampler):
         tau: float = 0.005,
         tmp: float | Literal["auto"] = "auto",
         policy_reg_coeff: float = 1e-3,
+        device: str = "mps",
     ) -> None:
-        self.env = env if isinstance(env, gym.Env) else gym.make(env)
+        self.device = torch.device(device)
+        self.obs_dim = obs_dim
+        self.action_dim = action_dim
         self.discount_factor = discount_factor
         self.hidden_sizes = hidden_sizes
         self.action_fn = action_fn
         self.auto_tmp_mode = True if tmp == "auto" else False
         self.tmp = (
-            nn.Parameter(torch.zeros(1).float(), requires_grad=True)
+            nn.Parameter(torch.zeros(1).float().to(self.device), requires_grad=True)
             if self.auto_tmp_mode
             else tmp
         )
@@ -45,30 +49,38 @@ class SAC(Agent, Sampler):
         self.min_log_std, self.max_log_std = min_log_std, max_log_std
         self.step_per_batch = step_per_batch
         self.tau = tau
-        self.action_dim = self.env.action_space.shape[0]
         self.policy_reg_coeff = policy_reg_coeff
         self.policy_prior = torch.distributions.Normal(0.0, 1.0)
 
     def make_nn(self) -> None:
-        obs_dim = self.env.observation_space.shape[0]
-        action_dim = self.env.action_space.shape[0]
-
+        obs_dim, action_dim = self.obs_dim, self.action_dim
         self.policy = make_feedforward(
-            obs_dim, action_dim * 2, self.hidden_sizes, self.action_fn, True
+            obs_dim,
+            action_dim * 2,
+            self.hidden_sizes,
+            self.action_fn,
+            True,
+            self.device,
         )
 
         self.q1 = make_feedforward(
-            obs_dim + action_dim, 1, self.hidden_sizes, self.action_fn, True
+            obs_dim + action_dim,
+            1,
+            self.hidden_sizes,
+            self.action_fn,
+            True,
+            self.device,
         )
         self.q2 = make_feedforward(
-            obs_dim + action_dim, 1, self.hidden_sizes, self.action_fn, True
+            obs_dim + action_dim,
+            1,
+            self.hidden_sizes,
+            self.action_fn,
+            True,
+            self.device,
         )
-        self.target_q1 = make_feedforward(
-            obs_dim + action_dim, 1, self.hidden_sizes, self.action_fn, True
-        )
-        self.target_q2 = make_feedforward(
-            obs_dim + action_dim, 1, self.hidden_sizes, self.action_fn, True
-        )
+        self.target_q1 = deepcopy(self.q1)
+        self.target_q2 = deepcopy(self.q2)
 
     def make_optimizers(self, policy_lr: float, critic_lr: float) -> None:
         self.optim_policy = torch.optim.Adam(self.policy.parameters(), lr=policy_lr)
@@ -162,15 +174,19 @@ class SAC(Agent, Sampler):
     def sample(self, obs: OBSERVATION, deterministic: bool = False, **kwargs) -> ACTION:
         with torch.no_grad():
             if not isinstance(obs, torch.Tensor):
-                obs = torch.Tensor(obs).float()
+                obs = torch.Tensor(obs).float().to(self.device)
             if obs.ndim == 1:
                 obs = obs.unsqueeze(0)
+            mean, log_std = self.policy_forward(obs)[-1]
             if deterministic:
-                mean, _ = self.policy_forward(obs)[-1]
                 action = torch.tanh(mean)
             else:
-                action = self.policy_forward(obs)[0]
-            action = action.cpu().detach().numpy()[0]
+                action = torch.tanh(
+                    torch.distributions.Normal(mean, log_std.exp()).sample()
+                )
+            action = action.cpu().detach().numpy()
+            if action.shape[0] == 1:
+                action = action[0]
         return action
 
     @torch.no_grad()

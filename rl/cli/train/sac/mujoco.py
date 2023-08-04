@@ -1,10 +1,10 @@
 import click
 
-from rl.runner.sac import run_sac
+from rl.runner.mujoco import run_mujoco
 from rl.utils.miscellaneous import configure
 
 
-default_cfg_path = "config/hopper.json"
+default_cfg_path = "config/mujoco/hopper.json"
 
 
 @click.command()
@@ -59,6 +59,19 @@ default_cfg_path = "config/hopper.json"
     show_default=True,
 )
 @click.option("--seed", type=click.INT, default=777, help="Seed", show_default=True)
-def sac(**agent_kwargs) -> None:
+@click.option(
+    "--action-fn",
+    type=click.STRING,
+    default="ReLU",
+    show_default=True,
+    help="The activation function.",
+)
+@click.option(
+    "--device", type=click.STRING, default="cpu", show_default=True, help="Device."
+)
+@click.option(
+    "--n-rollouts", type=click.INT, default=5, show_default=True, help="# of rollouts."
+)
+def mujoco(**agent_kwargs) -> None:
     """Soft Actor Critic."""
-    run_sac(print_mode=True, **agent_kwargs)
+    run_mujoco(print_mode=True, **agent_kwargs)
