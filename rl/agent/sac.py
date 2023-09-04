@@ -4,14 +4,14 @@ from typing import Literal
 import torch
 from torch import nn
 
-from rl.core.agent import Agent
-from rl.core.sampler import Sampler
-from rl.utils.neural_network import (
+from rl.agent.base import Agent
+from rl.sampler import Sampler
+from rl.neural_network import (
     calculate_grad_norm,
     clip_grad_norm,
     make_feedforward,
 )
-from rl.utils.annotation import ACTION, BATCH, DONE, EPS, OBSERVATION, REWARD
+from rl.utils.annotation import ACTION, BATCH, DONE, EPS, OBSERVATION, PATH, REWARD
 
 
 class SAC(Agent, Sampler):
@@ -39,6 +39,7 @@ class SAC(Agent, Sampler):
         self.hidden_sizes = hidden_sizes
         self.action_fn = action_fn
         self.auto_tmp_mode = True if tmp == "auto" else False
+        self.nn_fn = make_feedforward
         self.tmp = (
             nn.Parameter(torch.zeros(1).float().to(self.device), requires_grad=True)
             if self.auto_tmp_mode
@@ -51,10 +52,11 @@ class SAC(Agent, Sampler):
         self.tau = tau
         self.policy_reg_coeff = policy_reg_coeff
         self.policy_prior = torch.distributions.Normal(0.0, 1.0)
+        self.n_runs = 0
 
     def make_nn(self) -> None:
         obs_dim, action_dim = self.obs_dim, self.action_dim
-        self.policy = make_feedforward(
+        self.policy = self.nn_fn(
             obs_dim,
             action_dim * 2,
             self.hidden_sizes,
@@ -63,7 +65,7 @@ class SAC(Agent, Sampler):
             self.device,
         )
 
-        self.q1 = make_feedforward(
+        self.q1 = self.nn_fn(
             obs_dim + action_dim,
             1,
             self.hidden_sizes,
@@ -71,7 +73,7 @@ class SAC(Agent, Sampler):
             True,
             self.device,
         )
-        self.q2 = make_feedforward(
+        self.q2 = self.nn_fn(
             obs_dim + action_dim,
             1,
             self.hidden_sizes,
@@ -126,7 +128,6 @@ class SAC(Agent, Sampler):
     ) -> torch.Tensor:
         # make q target
         with torch.no_grad():
-            # next_value = self.target_value_fn.forward(next_obs)
             next_action, next_log_pi = self.policy_forward(next_obs)[:2]
             next_obs_action = torch.cat((next_obs, next_action), -1)
             next_value = torch.min(
@@ -158,8 +159,10 @@ class SAC(Agent, Sampler):
         policy_loss = torch.mean(-q_value + log_pi * tmp)
 
         # Calcuate tmp loss.
+        target_entropy = self.action_dim
+
         tmp_loss = (
-            torch.mean(self.tmp.exp() * (-log_pi.detach() + self.action_dim))
+            torch.mean(self.tmp.exp() * (-log_pi.detach() + target_entropy))
             if self.auto_tmp_mode
             else 0.0
         )
@@ -237,5 +240,5 @@ class SAC(Agent, Sampler):
         info["entropy"] = float(entropy.cpu().detach().numpy())
         # Update target network.
         self.update_target_value_fn()
-
+        self.n_runs += 1
         return info
