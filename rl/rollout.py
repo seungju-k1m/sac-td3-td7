@@ -17,18 +17,18 @@ class Rollout:
         self,
         env: gym.vector.AsyncVectorEnv,
         replay_buffer_size: int = 1_000_000,
-        n_steps: int = 1,
+        n_skip_steps: int = 1,
     ):
         """Initialize."""
         self.env = env
-        self.n_steps = n_steps
+        self.n_skip_steps = n_skip_steps
         self.replay_buffer: list[TRANSITION] = list()
         self.count_replay_buffer: int = 0
         self.replay_buffer_size: int = replay_buffer_size
         self.sampler = RandomSampler(self.env.action_space)
         self.obs: OBSERVATION = self.env.reset()[0]
         self._returns: list[float] = list()
-        self._rewards: list[float] = list()
+        self._rewards: list[float] = [list() for _ in range(self.env.num_envs)]
 
     def set_sampler(self, sampler: SAMPLER) -> None:
         """Set sampler."""
@@ -63,16 +63,16 @@ class Rollout:
         action = self.sampler.sample(self.obs)
         # TODO: If length is not completely divided by n_steps
         reward = np.zeros(self.env.num_envs)
-        for _ in range(self.n_steps):
+        for _ in range(self.n_skip_steps):
             next_obs, _reward, truncated, terminated, infos = self.env.step(action)
             reward += _reward
-        np_action = np.array(list(action.values())).T
-        for ob, aa, rwd, no, ter, trunc in zip(
-            self.obs, np_action, reward, next_obs, terminated, truncated
+        for idx, (ob, aa, rwd, no, ter, trunc) in enumerate(
+            zip(self.obs, action, reward, next_obs, terminated, truncated)
         ):
-            if trunc:
-                continue
-            float_done = 1.0 - float(ter)
+            # if trunc:
+            #     continue
+            _done = ter or trunc
+            float_done = 1.0 - float(_done)
             self.replay_buffer.append(
                 deepcopy(
                     [
@@ -84,7 +84,17 @@ class Rollout:
                     ]
                 )
             )
-        self.obs = next_obs
+            self._rewards[idx].append(rwd)
+            if ter or trunc:
+                self._returns.append(sum(self._rewards[idx]))
+                self._rewards[idx].clear()
+            self.count_replay_buffer += 1
         if self.count_replay_buffer > self.replay_buffer_size:
             for _ in range(len(action)):
                 self.replay_buffer.pop(0)
+                self.count_replay_buffer -= 1
+        self.obs = next_obs
+
+    def clear(self):
+        """."""
+        self._returns.clear()

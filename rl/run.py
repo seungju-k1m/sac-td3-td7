@@ -1,5 +1,6 @@
 """Run RL Algorithm."""
 
+from copy import deepcopy
 import random
 from time import time
 from pathlib import Path
@@ -17,7 +18,10 @@ from rl.rollout import Rollout
 
 @torch.no_grad()
 def test_agent(
-    env: gym.vector.AsyncVectorEnv, agent: Agent, deterministic: bool = True
+    env: gym.vector.AsyncVectorEnv,
+    agent: Agent,
+    deterministic: bool = True,
+    n_episodes: int = 16,
 ) -> None:
     """Test agent."""
     returns = []
@@ -25,7 +29,8 @@ def test_agent(
     n_envs = env.num_envs
     b_rewards = {idx: [] for idx in range(n_envs)}
     returns = list()
-    for _ in range(250):
+    flag = True
+    while flag:
         action = agent.sample(obs, deterministic)
         next_obs, rewards, truncateds, terminateds, _ = env.step(action)
         obs = next_obs
@@ -36,6 +41,8 @@ def test_agent(
             if truncated or termianted:
                 returns.append(sum(b_rewards[ii]))
                 b_rewards[ii].clear()
+        if len(returns) >= n_episodes:
+            flag = False
     mean = sum(returns) / len(returns)
     min_return, max_return = min(returns), max(returns)
     info = {"perf/mean": mean, "perf/min": min_return, "perf/max": max_return}
@@ -44,20 +51,20 @@ def test_agent(
 
 def run_rl(
     env: gym.Env,
-    eval_env: gym.Env,
     agent: Agent,
     logger: Logger,
     base_dir: Path,
     n_epochs: int = 1_000,
-    epoch_length: int = 1_000,
+    iteration_per_epoch: int = 1_000,
     n_inital_exploration_steps: int = 10_000,
     batch_size: int = 256,
     replay_buffer_size: int = 1_000_000,
     n_grad_step: int = 1,
+    n_skip_steps: int = 1,
+    eval_period: int = 1,
+    n_episodes_eval: int = 8,
     seed: int = 777,
-    print_mode: bool = True,
-    n_steps: int = 1,
-    period_eval: int = 1,
+    duration_freeze_policy: float = 0.2,
     **kwargs,
 ) -> None:
     """Run SAC Algorithm."""
@@ -67,19 +74,23 @@ def run_rl(
     np.random.seed(seed)
 
     # Set Rollout
-    rollout = Rollout(env, replay_buffer_size, n_steps=n_steps)
+    rollout = Rollout(env, replay_buffer_size, n_skip_steps=n_skip_steps)
+    eval_env = gym.make_vec(env.spec, 8)
+    checkpoint_policy = deepcopy(agent)
 
     # Miscellaneous
     start_logging = False
     best_performance = -float("inf")
-    iterator = tqdm(range(n_epochs)) if print_mode else range(n_epochs)
+    iterator = tqdm(range(n_epochs))
     start_time = time()
     train_infos: list[dict] = list()
     train_flag = False
-    test_info = test_agent(eval_env, agent)
+    test_info = test_agent(eval_env, checkpoint_policy, n_episodes=n_episodes_eval)
     iteration = 0
+    start_freeze_policy = int((0.5 - duration_freeze_policy / 2) * iteration_per_epoch)
+    end_freeze_policy = int((0.5 + duration_freeze_policy / 2) * iteration_per_epoch)
     for epoch in iterator:
-        for _ in range(epoch_length):
+        for inner_iteration in range(iteration_per_epoch):
             rollout.sample()
             if train_flag is False:
                 if len(rollout.replay_buffer) >= n_inital_exploration_steps:
@@ -88,16 +99,27 @@ def run_rl(
                 else:
                     continue
             # Run Train ops
-            for _ in range(n_grad_step):
-                batch = rollout.get_batch(batch_size)
-                train_info = agent.train_ops(batch)
-                train_infos.append(train_info)
-                iteration += 1
-        if epoch % period_eval == 0 and train_flag:
-            test_info = test_agent(eval_env, agent)
+            if start_freeze_policy <= inner_iteration <= end_freeze_policy:
+                if inner_iteration == start_freeze_policy:
+                    rollout.clear()
+                if inner_iteration == end_freeze_policy:
+                    perf = sum(rollout._returns) / (len(rollout._returns) + 1e-6)
+                    if perf > best_performance:
+                        best_performance = perf
+                        checkpoint_policy = deepcopy(agent)
+            else:
+                for _ in range(n_grad_step):
+                    batch = rollout.get_batch(batch_size)
+                    train_info = agent.train_ops(batch)
+                    train_infos.append(train_info)
+                    iteration += 1
+        if epoch % eval_period == 0 and train_flag:
+            test_info = test_agent(
+                eval_env, checkpoint_policy, n_episodes=n_episodes_eval
+            )
             if test_info["perf/mean"] > best_performance:
                 best_performance = test_info["perf/mean"]
-                agent.save(base_dir / "best.pkl")
+                checkpoint_policy.save(base_dir / "best.pkl")
         # Logging.
         if len(train_infos) > 0:
             train_keies = list(train_infos[0].keys())
