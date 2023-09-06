@@ -41,14 +41,10 @@ from rl.utils.cli_utils import configure
     type=click.INT,
     default=10_000_000,
     show_default=True,
-    help="# of iteration."
+    help="# of iteration.",
 )
 @click.option(
-    "--batch-size",
-    type=click.INT,
-    default=256,
-    show_default=True,
-    help="Batch size."
+    "--batch-size", type=click.INT, default=256, show_default=True, help="Batch size."
 )
 @click.option(
     "--use-checkpoint",
@@ -56,12 +52,11 @@ from rl.utils.cli_utils import configure
     default=False,
     show_default=True,
     help="Use Checkpoint",
-    is_flag=True
+    is_flag=True,
 )
 def cli_run_sac(**kwargs):
     """Run SAC Algorithm."""
     run_sac(**kwargs)
-
 
 
 @click.command(name="td3")
@@ -85,14 +80,10 @@ def cli_run_sac(**kwargs):
     type=click.INT,
     default=10_000_000,
     show_default=True,
-    help="# of iteration."
+    help="# of iteration.",
 )
 @click.option(
-    "--batch-size",
-    type=click.INT,
-    default=256,
-    show_default=True,
-    help="Batch size."
+    "--batch-size", type=click.INT, default=256, show_default=True, help="Batch size."
 )
 @click.option(
     "--use-checkpoint",
@@ -100,7 +91,7 @@ def cli_run_sac(**kwargs):
     default=False,
     show_default=True,
     help="Use Checkpoint",
-    is_flag=True
+    is_flag=True,
 )
 def cli_run_td3(**kwargs):
     """Run SAC Algorithm."""

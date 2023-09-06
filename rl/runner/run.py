@@ -1,6 +1,5 @@
 """Run RL Algorithm."""
 
-import pdb
 import random
 from pathlib import Path
 from logging import Logger
@@ -36,18 +35,27 @@ def test_agent(
     info = {"perf/mean": mean[0], "perf/min": min_return[0], "perf/max": max_return[0]}
     return info
 
+
 def _get_mean(eles: list[float | None]) -> float:
     """Get mean."""
     eles = [ele for ele in eles if ele is not None]
     mean = sum(eles) / len(eles) if len(eles) != 0 else -1e6
     return mean
 
-def logging(iteration: int, logger: Logger, train_infos: list[dict], test_info: dict, rollout_info: dict, start_logging: bool, **kwargs) -> None:
+
+def logging(
+    iteration: int,
+    logger: Logger,
+    train_infos: list[dict],
+    test_info: dict,
+    rollout_info: dict,
+    start_logging: bool,
+    **kwargs,
+) -> None:
     """Logging."""
     train_keies = list(train_infos[0].keys())
     logging_info = {
-        key: _get_mean(list(map(lambda x: x[key], train_infos)))
-        for key in train_keies
+        key: _get_mean(list(map(lambda x: x[key], train_infos))) for key in train_keies
     }
     if start_logging:
         logger.info(
@@ -63,12 +71,13 @@ def logging(iteration: int, logger: Logger, train_infos: list[dict], test_info: 
     logging_info.update(rollout_info)
     logging_info.update(test_info)
     logging_info = {key: value for key, value in sorted(logging_info.items())}
-    stats_string = ",".join(
-        [f"{value:.4f}" for value in logging_info.values()]
-    )
+    stats_string = ",".join([f"{value:.4f}" for value in logging_info.values()])
     logger.info(f"{iteration},{stats_string}")
 
-def run_train_ops(n_ops: int, rollout: Rollout, agent: Agent, batch_size: int) -> list[dict]:
+
+def run_train_ops(
+    n_ops: int, rollout: Rollout, agent: Agent, batch_size: int
+) -> list[dict]:
     """Run Train Ops."""
     train_infos = list()
     for _ in range(n_ops):
@@ -136,11 +145,12 @@ def run_rl(
         if len(train_infos) > 0:
             rollout_info = {
                 "rollout/return": episode_return,
-                "rollout/episode_length": episode_length
+                "rollout/episode_length": episode_length,
             }
-            logging(iteration, logger, train_infos, test_info, rollout_info, start_logging)
+            logging(
+                iteration, logger, train_infos, test_info, rollout_info, start_logging
+            )
             if start_logging:
                 start_logging = False
             agent.save(base_dir / "model.pkl")
             train_infos.clear()
-
