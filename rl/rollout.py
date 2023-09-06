@@ -4,7 +4,6 @@ from copy import deepcopy
 
 import torch
 import numpy as np
-import gymnasium as gym
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
 
 
@@ -67,13 +66,7 @@ class Rollout:
         next_obs, reward, truncated, terminated, info = self.env.step(action)
         done = truncated or terminated
         self.replay_buffer.append(
-            deepcopy([
-                self.obs,
-                action,
-                reward,
-                next_obs,
-                1.0 - float(done)
-            ])
+            deepcopy([self.obs, action, reward, next_obs, 1.0 - float(done)])
         )
         self.obs = next_obs
         if len(self.replay_buffer) > self.replay_buffer_size:

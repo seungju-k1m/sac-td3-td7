@@ -1,11 +1,9 @@
 """Soft Actor Critic."""
 
 import json
-import pdb
 import numpy as np
 import pandas as pd
 from copy import deepcopy
-from typing import Literal
 from datetime import datetime
 
 import torch
@@ -20,7 +18,7 @@ from rl.neural_network import (
     clip_grad_norm,
     make_feedforward,
 )
-from rl.utils.annotation import ACTION, BATCH, DONE, EPS, OBSERVATION, REWARD
+from rl.utils.annotation import ACTION, BATCH, DONE, OBSERVATION, REWARD
 from rl.utils.miscellaneous import convert_dict_as_param, setup_logger
 from rl.runner import run_rl, run_rl_w_checkpoint
 
@@ -38,7 +36,7 @@ class TD3(Agent, Sampler):
         policy_lr: float = 3e-4,
         critic_lr: float = 3e-4,
         target_update_rate: int = 250,
-	    exploration_noise: float = 0.1,
+        exploration_noise: float = 0.1,
         target_policy_noise: float = 0.2,
         noise_clip: float = 0.5,
         policy_freq: int = 2,
@@ -97,9 +95,7 @@ class TD3(Agent, Sampler):
         self.optim_q_fns.step()
         self.optim_policy.step()
 
-    def policy_forward(
-        self, obs: OBSERVATION
-    ) -> ACTION:
+    def policy_forward(self, obs: OBSERVATION) -> ACTION:
         """Only forward with policy."""
         mean = self.policy.forward(obs)
         action = torch.tanh(mean)
@@ -115,17 +111,18 @@ class TD3(Agent, Sampler):
     ) -> torch.Tensor:
         # make q target
         with torch.no_grad():
-            noise = (torch.rand_like(action) * self.target_policy_noise).clamp(-self.noise_clip, self.noise_clip)
-            next_action = (torch.tanh(self.target_policy(next_obs)) + noise).clamp(-1.0, 1.0)
+            noise = (torch.rand_like(action) * self.target_policy_noise).clamp(
+                -self.noise_clip, self.noise_clip
+            )
+            next_action = (torch.tanh(self.target_policy(next_obs)) + noise).clamp(
+                -1.0, 1.0
+            )
             next_obs_action = torch.cat((next_obs, next_action), -1)
             next_value = torch.min(
                 self.target_q1.forward(next_obs_action),
                 self.target_q2.forward(next_obs_action),
             )
-            q_target = (
-                reward
-                + self.discount_factor * next_value * done
-            )
+            q_target = reward + self.discount_factor * next_value * done
         # calculate q value
         obs_action = torch.cat((obs, action), 1)
         q1, q2 = self.q1.forward(obs_action), self.q2.forward(obs_action)
@@ -134,16 +131,14 @@ class TD3(Agent, Sampler):
         q_loss = q1_loss + q2_loss
         return q_loss
 
-    def _policy_ops(
-        self, obs: OBSERVATION, **kwargs
-    ) -> torch.Tensor:
+    def _policy_ops(self, obs: OBSERVATION, **kwargs) -> torch.Tensor:
         """Policy ops."""
         # Calculate policy loss.
         action = self.policy_forward(obs)
         obs_action = torch.cat((obs, action), -1)
         q1, q2 = self.q1.forward(obs_action), self.q2.forward(obs_action)
         policy_loss = -torch.min(q1, q2).mean()
-        return  policy_loss
+        return policy_loss
 
     def sample(self, obs: OBSERVATION, deterministic: bool = False, **kwargs) -> ACTION:
         """Sample action for inference action."""
@@ -155,7 +150,9 @@ class TD3(Agent, Sampler):
             action = self.policy_forward(obs)
             action = action.cpu().detach().numpy()[0]
             if not deterministic:
-                noise = np.random.normal(0, 1.0 * self.exploration_noise, size=action.shape)
+                noise = np.random.normal(
+                    0, 1.0 * self.exploration_noise, size=action.shape
+                )
                 action += noise
                 action = np.clip(action, -1.0, 1.0)
         return action
@@ -167,7 +164,9 @@ class TD3(Agent, Sampler):
             t_q_parm.copy_(self.tau * q_parm + t_q_parm * (1 - self.tau))
         for q_parm, t_q_parm in zip(self.q2.parameters(), self.target_q2.parameters()):
             t_q_parm.copy_(self.tau * q_parm + t_q_parm * (1 - self.tau))
-        for pi_parm, t_pi_parm in zip(self.policy.parameters(), self.target_policy.parameters()):
+        for pi_parm, t_pi_parm in zip(
+            self.policy.parameters(), self.target_policy.parameters()
+        ):
             t_pi_parm.copy_(self.tau * pi_parm + t_pi_parm * (1 - self.tau))
 
     def train_ops(self, batch: BATCH, *args, **kwargs) -> None:
@@ -192,7 +191,7 @@ class TD3(Agent, Sampler):
         if self.n_runs % self.policy_freq == 0:
             policy_loss = self._policy_ops(**batch)
             policy_loss.backward()
-            info["loss/policy"] =  float(policy_loss.cpu().detach().numpy())
+            info["loss/policy"] = float(policy_loss.cpu().detach().numpy())
             info["norm/policy"] = calculate_grad_norm(self.policy)
             clip_grad_norm(self.policy, max_norm)
 

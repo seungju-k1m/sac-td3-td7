@@ -1,9 +1,7 @@
 """Run RL Algorithm."""
 
 from copy import deepcopy
-import pdb
 import random
-from time import time
 from pathlib import Path
 from logging import Logger
 
@@ -15,7 +13,6 @@ from rl.agent.base import Agent
 from rl.rollout import Rollout
 from rl.runner.run import logging, run_train_ops, test_agent
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
-from gymnasium.wrappers.time_limit import TimeLimit
 
 
 def run_rl_w_checkpoint(
@@ -89,7 +86,7 @@ def run_rl_w_checkpoint(
             min_return = min(episode_return, min_return)
             if min_return < best_min_return:
                 break
-        if idx == max_episode_per_one_chpt-1:
+        if idx == max_episode_per_one_chpt - 1:
             best_min_return = min_return
             checkpoint_agent = deepcopy(agent)
             checkpoint_agent.save(base_dir / "ckpt.pkl")
@@ -100,9 +97,11 @@ def run_rl_w_checkpoint(
             # best_min_return *= reset_weight
             rollout_info = {
                 "rollout/return": episode_return,
-                "rollout/episode_length": episode_length
+                "rollout/episode_length": episode_length,
             }
-            logging(iteration, logger, train_infos, test_info, rollout_info, start_logging)
+            logging(
+                iteration, logger, train_infos, test_info, rollout_info, start_logging
+            )
             if start_logging:
                 start_logging = False
             # agent.save(base_dir / "model.pkl")
