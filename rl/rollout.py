@@ -5,6 +5,8 @@ from copy import deepcopy
 import torch
 import numpy as np
 import gymnasium as gym
+from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
+
 
 from rl.sampler import SAMPLER, RandomSampler
 from rl.utils.annotation import TRANSITION, OBSERVATION, BATCH, ACTION, REWARD, DONE
@@ -15,20 +17,18 @@ class Rollout:
 
     def __init__(
         self,
-        env: gym.vector.AsyncVectorEnv,
+        env: RecordEpisodeStatistics,
         replay_buffer_size: int = 1_000_000,
-        n_skip_steps: int = 1,
     ):
         """Initialize."""
         self.env = env
-        self.n_skip_steps = n_skip_steps
         self.replay_buffer: list[TRANSITION] = list()
         self.count_replay_buffer: int = 0
         self.replay_buffer_size: int = replay_buffer_size
         self.sampler = RandomSampler(self.env.action_space)
         self.obs: OBSERVATION = self.env.reset()[0]
-        self._returns: list[float] = list()
-        self._rewards: list[float] = [list() for _ in range(self.env.num_envs)]
+        self.need_reset: bool = True
+        self.n_episode: int = 0
 
     def set_sampler(self, sampler: SAMPLER) -> None:
         """Set sampler."""
@@ -58,43 +58,26 @@ class Rollout:
             done = torch.Tensor(done)
         return dict(obs=obs, action=action, reward=reward, next_obs=next_obs, done=done)
 
-    def sample(self) -> None:
+    def sample(self) -> bool:
         """Sample action using policy."""
+        if self.need_reset:
+            self.need_reset = False
+            self.obs = self.env.reset()[0]
         action = self.sampler.sample(self.obs)
-        # TODO: If length is not completely divided by n_steps
-        reward = np.zeros(self.env.num_envs)
-        for _ in range(self.n_skip_steps):
-            next_obs, _reward, truncated, terminated, infos = self.env.step(action)
-            reward += _reward
-        for idx, (ob, aa, rwd, no, ter, trunc) in enumerate(
-            zip(self.obs, action, reward, next_obs, terminated, truncated)
-        ):
-            # if trunc:
-            #     continue
-            _done = ter or trunc
-            float_done = 1.0 - float(_done)
-            self.replay_buffer.append(
-                deepcopy(
-                    [
-                        ob.astype(np.float32),
-                        aa.astype(np.float32),
-                        rwd,
-                        no.astype(np.float32),
-                        float_done,
-                    ]
-                )
-            )
-            self._rewards[idx].append(rwd)
-            if ter or trunc:
-                self._returns.append(sum(self._rewards[idx]))
-                self._rewards[idx].clear()
-            self.count_replay_buffer += 1
-        if self.count_replay_buffer > self.replay_buffer_size:
-            for _ in range(len(action)):
-                self.replay_buffer.pop(0)
-                self.count_replay_buffer -= 1
+        next_obs, reward, truncated, terminated, info = self.env.step(action)
+        done = truncated or terminated
+        self.replay_buffer.append(
+            deepcopy([
+                self.obs,
+                action,
+                reward,
+                next_obs,
+                1.0 - float(done)
+            ])
+        )
         self.obs = next_obs
-
-    def clear(self):
-        """."""
-        self._returns.clear()
+        if len(self.replay_buffer) > self.replay_buffer_size:
+            self.replay_buffer.pop(0)
+        if done:
+            self.obs = self.env.reset()[0]
+        return done
