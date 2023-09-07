@@ -10,6 +10,7 @@ import numpy as np
 import gymnasium as gym
 
 from rl.agent.base import Agent
+from rl.replay_buffer.base import REPLAYBUFFER
 from rl.rollout import Rollout
 from rl.runner.run import logging, run_train_ops, test_agent
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
@@ -20,10 +21,10 @@ def run_rl_w_checkpoint(
     agent: Agent,
     logger: Logger,
     base_dir: Path,
+    replay_buffer: REPLAYBUFFER,
     n_inital_exploration_steps: int = 25_000,
     n_iteration: int = 10_000_000,
     batch_size: int = 256,
-    replay_buffer_size: int = 1_000_000,
     seed: int = 777,
     max_episode_per_one_chpt: int = 20,
     reset_weight: float = 0.9,
@@ -41,7 +42,7 @@ def run_rl_w_checkpoint(
 
     env = RecordEpisodeStatistics(env, 1)
     eval_env = RecordEpisodeStatistics(eval_env, 16)
-    rollout = Rollout(env, replay_buffer_size)
+    rollout = Rollout(env, replay_buffer)
 
     # Miscellaneous
     train_flag = False
@@ -49,6 +50,7 @@ def run_rl_w_checkpoint(
 
     # Checkpoint
     best_min_return = -1e8
+    update_steps_before_ckpt = int(75e4)
     checkpoint_agent = deepcopy(agent)
 
     # Run RL
@@ -56,12 +58,13 @@ def run_rl_w_checkpoint(
     update_checkpoint_agent = True
     best_return = -1e8
     test_info = test_agent(eval_env, checkpoint_agent, True)
+    current_max_episode_per_one_ckpt = 1
     while iteration < n_iteration:
         train_infos: list[dict] = list()
         min_return = 1e8
         sum_episode_length = 0
 
-        for idx in range(max_episode_per_one_chpt):
+        for idx in range(current_max_episode_per_one_ckpt):
             # One Episode
             done = False
             while not done:
@@ -86,7 +89,7 @@ def run_rl_w_checkpoint(
             min_return = min(episode_return, min_return)
             if min_return < best_min_return:
                 break
-        if idx == max_episode_per_one_chpt - 1:
+        if idx == current_max_episode_per_one_ckpt - 1:
             best_min_return = min_return
             checkpoint_agent = deepcopy(agent)
             checkpoint_agent.save(base_dir / "ckpt.pkl")
@@ -104,5 +107,7 @@ def run_rl_w_checkpoint(
             )
             if start_logging:
                 start_logging = False
-            # agent.save(base_dir / "model.pkl")
-            sum_episode_length = 0
+            if iteration > n_inital_exploration_steps + update_steps_before_ckpt:
+                current_max_episode_per_one_ckpt = max_episode_per_one_chpt
+                best_min_return *= reset_weight
+                reset_weight = 1.0

@@ -12,6 +12,9 @@ from torch import nn
 
 from rl import SAVE_DIR
 from rl.agent.base import Agent
+from rl.replay_buffer.base import REPLAYBUFFER
+from rl.replay_buffer.lap import LAPReplayBuffer
+from rl.replay_buffer.simple import SimpleReplayBuffer
 from rl.sampler import Sampler
 from rl.neural_network import (
     calculate_grad_norm,
@@ -43,6 +46,7 @@ class SAC(Agent, Sampler):
         policy_reg_coeff: float = 0.0,
         policy_sto_reg_coeff: float = 0.0,
         reward_scale: float = 1.0,
+        use_lap: bool = False,
         **kwargs,
     ) -> None:
         self.discount_factor = discount_factor
@@ -66,6 +70,7 @@ class SAC(Agent, Sampler):
         self.policy_sto_reg_coeff = policy_sto_reg_coeff
         self.n_runs = 0
         self.reward_scale = reward_scale
+        self.use_lap = use_lap
 
     def make_nn(self) -> None:
         """Make neurla networks."""
@@ -128,7 +133,7 @@ class SAC(Agent, Sampler):
         next_obs: OBSERVATION,
         reward: REWARD,
         done: DONE,
-    ) -> torch.Tensor:
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         # make q target
         with torch.no_grad():
             next_action, next_log_pi = self.policy_forward(next_obs)[:2]
@@ -145,10 +150,20 @@ class SAC(Agent, Sampler):
         # calculate q value
         obs_action = torch.cat((obs, action), 1)
         q1, q2 = self.q1.forward(obs_action), self.q2.forward(obs_action)
-        q1_loss = torch.mean((q_target - q1) ** 2.0) * 0.5
-        q2_loss = torch.mean((q_target - q2) ** 2.0) * 0.5
-        q_loss = q1_loss + q2_loss
-        return q_loss
+        if self.use_lap:
+            td_loss1 = (q1 - q_target).abs()
+            td_loss2 = (q2 - q_target).abs()
+            q1_loss = self._lap_huber(td_loss1)
+            q2_loss = self._lap_huber(td_loss2)
+            q_loss = q1_loss + q2_loss
+            # TODO: It is hard-coding
+            priority = torch.max(td_loss1, td_loss2).clamp(1.0).pow(0.4).view(-1)
+            return q_loss, priority.cpu().detach()
+        else:
+            q1_loss = torch.mean((q_target - q1) ** 2.0) * 0.5
+            q2_loss = torch.mean((q_target - q2) ** 2.0) * 0.5
+            q_loss = q1_loss + q2_loss
+            return q_loss
 
     def _policy_ops(
         self, obs: OBSERVATION, **kwargs
@@ -210,13 +225,17 @@ class SAC(Agent, Sampler):
         for q_parm, t_q_parm in zip(self.q2.parameters(), self.target_q2.parameters()):
             t_q_parm.copy_(self.tau * q_parm + t_q_parm * (1 - self.tau))
 
-    def train_ops(self, batch: BATCH, *args, **kwargs) -> None:
+    def train_ops(
+        self, batch: BATCH, replay_buffer: REPLAYBUFFER | None = None, *args, **kwargs
+    ) -> None:
         """Run train ops."""
         # Update state value function.
         info = {}
         max_norm = float("inf")
         # Update Action-State value function.
         q_value_loss = self._q_value_ops(**batch)
+        if isinstance(q_value_loss, tuple):
+            q_value_loss, priority = q_value_loss
         q_value_loss.backward()
         info["norm/q1_value"] = calculate_grad_norm(self.q1)
         info["norm/q2_value"] = calculate_grad_norm(self.q2)
@@ -257,6 +276,9 @@ class SAC(Agent, Sampler):
             info["loss/tmp"] = float(tmp_loss.cpu().detach().numpy())
 
         info["entropy"] = float(entropy.cpu().detach().numpy())
+        if self.use_lap:
+            assert isinstance(replay_buffer, LAPReplayBuffer)
+            replay_buffer.update_priority(priority)
         # Update target network.
         self.update_target_value_fn()
         self.n_runs += 1
@@ -273,6 +295,8 @@ def run_sac(
     reward_scale: float = 1.0,
     discount_factor: float = 0.99,
     use_checkpoint: bool = False,
+    use_lap: bool = False,
+    replay_buffer_size: int = 1_000_000,
     **kwargs,
 ) -> None:
     """Run Heating Environment."""
@@ -296,6 +320,11 @@ def run_sac(
     # Make envs
     env = gym.make(env_id)
     # env = RecordEpisodeStatistics(env, deque_size=1)
+    replay_buffer = (
+        LAPReplayBuffer(replay_buffer_size, env.observation_space, env.action_space)
+        if use_lap
+        else SimpleReplayBuffer(replay_buffer_size)
+    )
     tmp = "auto" if auto_tmp else tmp
     agent = SAC(
         env.action_space,
@@ -307,6 +336,6 @@ def run_sac(
         **kwargs,
     )
     if use_checkpoint:
-        run_rl_w_checkpoint(env, agent, logger, base_dir, **kwargs)
+        run_rl_w_checkpoint(env, agent, logger, base_dir, replay_buffer, **kwargs)
     else:
-        run_rl(env, agent, logger, base_dir, seed=seed, **kwargs)
+        run_rl(env, agent, logger, base_dir, replay_buffer, seed=seed, **kwargs)

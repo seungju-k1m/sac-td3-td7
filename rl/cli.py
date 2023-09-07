@@ -93,6 +93,14 @@ def cli_run_sac(**kwargs):
     help="Use Checkpoint",
     is_flag=True,
 )
+@click.option(
+    "--use-lap",
+    type=click.BOOL,
+    default=False,
+    show_default=True,
+    help="Use LAP.",
+    is_flag=True,
+)
 def cli_run_td3(**kwargs):
     """Run SAC Algorithm."""
     run_td3(**kwargs)
