@@ -11,6 +11,7 @@ from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
 
 
 from rl.agent.base import Agent
+from rl.replay_buffer.base import REPLAYBUFFER
 from rl.rollout import Rollout
 
 
@@ -82,7 +83,7 @@ def run_train_ops(
     train_infos = list()
     for _ in range(n_ops):
         batch = rollout.get_batch(batch_size)
-        train_info = agent.train_ops(batch)
+        train_info = agent.train_ops(batch, replay_buffer=rollout.replay_buffer)
         train_infos.append(train_info)
     return train_infos
 
@@ -92,10 +93,10 @@ def run_rl(
     agent: Agent,
     logger: Logger,
     base_dir: Path,
+    replay_buffer: REPLAYBUFFER,
     n_inital_exploration_steps: int = 25_000,
     n_iteration: int = 10_000_000,
     batch_size: int = 256,
-    replay_buffer_size: int = 1_000_000,
     n_grad_step: int = 1,
     seed: int = 777,
     eval_period: int = 5000,
@@ -112,7 +113,7 @@ def run_rl(
 
     env = RecordEpisodeStatistics(env, 2)
     eval_env = RecordEpisodeStatistics(eval_env, 16)
-    rollout = Rollout(env, replay_buffer_size)
+    rollout = Rollout(env, replay_buffer)
 
     # Miscellaneous
     train_flag = False
