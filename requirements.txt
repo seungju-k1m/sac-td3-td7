@@ -3,3 +3,4 @@ gymnasium==0.29.1
 numpy==1.25.1
 click==8.1.6
 cython==0.29.36
+ray==2.6.1
