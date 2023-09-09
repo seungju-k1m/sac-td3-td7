@@ -1,6 +1,8 @@
 """Soft Actor Critic."""
 
 import json
+import random
+import numpy as np
 import pandas as pd
 from copy import deepcopy
 from typing import Literal
@@ -45,7 +47,6 @@ class SAC(Agent, Sampler):
         tmp: float | Literal["auto"] = "auto",
         policy_reg_coeff: float = 0.0,
         policy_sto_reg_coeff: float = 0.0,
-        reward_scale: float = 1.0,
         use_lap: bool = False,
         **kwargs,
     ) -> None:
@@ -69,7 +70,6 @@ class SAC(Agent, Sampler):
         self.policy_reg_coeff = policy_reg_coeff
         self.policy_sto_reg_coeff = policy_sto_reg_coeff
         self.n_runs = 0
-        self.reward_scale = reward_scale
         self.use_lap = use_lap
 
     def make_nn(self) -> None:
@@ -144,8 +144,7 @@ class SAC(Agent, Sampler):
             )
             tmp = self.tmp.exp() if self.auto_tmp_mode else self.tmp
             q_target = (
-                reward * self.reward_scale
-                + self.discount_factor * (next_value - tmp * next_log_pi) * done
+                reward + self.discount_factor * (next_value - tmp * next_log_pi) * done
             )
         # calculate q value
         obs_action = torch.cat((obs, action), 1)
@@ -288,15 +287,15 @@ class SAC(Agent, Sampler):
 def run_sac(
     rl_run_name: str,
     env_id: str,
-    seed: int = 777,
     auto_tmp: bool = False,
     tmp: float = 0.2,
     action_fn: str = "ReLU",
-    reward_scale: float = 1.0,
     discount_factor: float = 0.99,
     use_checkpoint: bool = False,
     use_lap: bool = False,
     replay_buffer_size: int = 1_000_000,
+    seed: int = 777,
+    benchmark_idx: int = 0,
     **kwargs,
 ) -> None:
     """Run Heating Environment."""
@@ -305,9 +304,12 @@ def run_sac(
     print("-" * 5 + "[SAC]" + "-" * 5)
     print(" " + pd.Series(params).to_string().replace("\n", "\n "))
     print()
-    timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
-    rl_run_name = f"{rl_run_name}-{timestamp}"
-    base_dir = SAVE_DIR / "SAC" / rl_run_name
+    if benchmark_idx > 0:
+        base_dir = SAVE_DIR / "VALID" / f"SAC-{rl_run_name}" / str(benchmark_idx)
+    else:
+        timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
+        rl_run_name = f"{rl_run_name}-{timestamp}"
+        base_dir = SAVE_DIR / "SAC" / rl_run_name
     base_dir.mkdir(exist_ok=True, parents=True)
 
     # TODO: Replace logger by mlflow.
@@ -316,10 +318,13 @@ def run_sac(
     # Write out configuration file.
     with open(base_dir / "config.json", "w") as file_handler:
         json.dump(params, file_handler, indent=4)
-
+    # Set Seed.
+    torch.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
     # Make envs
     env = gym.make(env_id)
-    # env = RecordEpisodeStatistics(env, deque_size=1)
+
     replay_buffer = (
         LAPReplayBuffer(replay_buffer_size, env.observation_space, env.action_space)
         if use_lap
@@ -330,7 +335,6 @@ def run_sac(
         env.action_space,
         env.observation_space,
         action_fn=action_fn,
-        reward_scale=reward_scale,
         discount_factor=discount_factor,
         tmp=tmp,
         **kwargs,
@@ -338,4 +342,4 @@ def run_sac(
     if use_checkpoint:
         run_rl_w_checkpoint(env, agent, logger, base_dir, replay_buffer, **kwargs)
     else:
-        run_rl(env, agent, logger, base_dir, replay_buffer, seed=seed, **kwargs)
+        run_rl(env, agent, logger, base_dir, replay_buffer, **kwargs)
