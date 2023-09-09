@@ -1,6 +1,7 @@
 """Soft Actor Critic."""
 
 import json
+import random
 import numpy as np
 import pandas as pd
 from copy import deepcopy
@@ -244,6 +245,7 @@ def run_td3(
     use_checkpoint: bool = False,
     use_lap: bool = False,
     replay_buffer_size: int = 1_000_000,
+    benchmark_idx: int = 0,
     **kwargs,
 ) -> None:
     """Run Heating Environment."""
@@ -252,9 +254,12 @@ def run_td3(
     print("-" * 5 + "[TD3]" + "-" * 5)
     print(" " + pd.Series(params).to_string().replace("\n", "\n "))
     print()
-    timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
-    rl_run_name = f"{rl_run_name}-{timestamp}"
-    base_dir = SAVE_DIR / "TD3" / rl_run_name
+    if benchmark_idx > 0:
+        base_dir = SAVE_DIR / "VALID" / f"SAC-{rl_run_name}" / str(benchmark_idx)
+    else:
+        timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
+        rl_run_name = f"{rl_run_name}-{timestamp}"
+        base_dir = SAVE_DIR / "SAC" / rl_run_name
     base_dir.mkdir(exist_ok=True, parents=True)
 
     # TODO: Replace logger by mlflow.
@@ -263,10 +268,13 @@ def run_td3(
     # Write out configuration file.
     with open(base_dir / "config.json", "w") as file_handler:
         json.dump(params, file_handler, indent=4)
+    # Set Seed.
+    torch.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
 
     # Make envs
     env = gym.make(env_id)
-    # env = RecordEpisodeStatistics(env, deque_size=1)
     agent = TD3(
         env.action_space,
         env.observation_space,
@@ -285,4 +293,4 @@ def run_td3(
     if use_checkpoint:
         run_rl_w_checkpoint(env, agent, logger, base_dir, replay_buffer, **kwargs)
     else:
-        run_rl(env, agent, logger, base_dir, replay_buffer, seed=seed, **kwargs)
+        run_rl(env, agent, logger, base_dir, replay_buffer, **kwargs)

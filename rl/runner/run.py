@@ -1,6 +1,5 @@
 """Run RL Algorithm."""
 
-import random
 from pathlib import Path
 from logging import Logger
 
@@ -24,7 +23,7 @@ def test_agent(
 ) -> None:
     """Test agent."""
     for _ in range(n_episodes):
-        obs, _ = env.reset()
+        obs, _ = env.reset(seed=np.random.randint(1, 10000000))
         done = False
         while not done:
             action = agent.sample(obs, deterministic)
@@ -98,16 +97,10 @@ def run_rl(
     n_iteration: int = 10_000_000,
     batch_size: int = 256,
     n_grad_step: int = 1,
-    seed: int = 777,
     eval_period: int = 5000,
     **kwargs,
 ) -> None:
     """Run SAC Algorithm."""
-    # Set seed
-    torch.manual_seed(seed)
-    random.seed(seed)
-    np.random.seed(seed)
-
     # Set Rollout
     eval_env = gym.make(env.spec)
 
@@ -137,7 +130,7 @@ def run_rl(
             train_infos += run_train_ops(n_grad_step, rollout, agent, batch_size)
             iteration += n_grad_step
             if iteration % eval_period == 0:
-                test_info = test_agent(eval_env, agent, True)
+                test_info = test_agent(eval_env, agent, deterministic=True)
                 if test_info["perf/mean"] > best_return:
                     best_return = test_info["perf/mean"]
                     agent.save(base_dir / "best.pkl")
