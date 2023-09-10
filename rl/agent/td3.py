@@ -255,7 +255,14 @@ def run_td3(
     print(" " + pd.Series(params).to_string().replace("\n", "\n "))
     print()
     if benchmark_idx > 0:
-        base_dir = SAVE_DIR / "VALID" / f"SAC-{rl_run_name}" / str(benchmark_idx)
+        base_dir = (
+            SAVE_DIR
+            / "VALID"
+            / env_id
+            / "TD3"
+            / f"SAC-{rl_run_name}"
+            / str(benchmark_idx)
+        )
     else:
         timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
         rl_run_name = f"{rl_run_name}-{timestamp}"
