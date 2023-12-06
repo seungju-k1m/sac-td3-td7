@@ -24,9 +24,9 @@ class LAPReplayBuffer(BaseReplayBuffer):
         self.ptr = 0
         self.size = 0
         self.ind: list[int]
-        self.obs = np.zeros((replay_buffer_size, observation_space.shape[-1]))
+        self.state = np.zeros((replay_buffer_size, observation_space.shape[-1]))
         self.action = np.zeros((replay_buffer_size, action_space.shape[-1]))
-        self.next_obs = np.zeros((replay_buffer_size, observation_space.shape[-1]))
+        self.next_state = np.zeros((replay_buffer_size, observation_space.shape[-1]))
         self.reward = np.zeros((replay_buffer_size, 1))
         self.float_done = np.zeros([replay_buffer_size, 1])
         self.priority = torch.zeros(replay_buffer_size)
@@ -36,10 +36,10 @@ class LAPReplayBuffer(BaseReplayBuffer):
         """Append transition."""
         assert len(transition) == 5
         obs, action, reward, next_obs, float_done = transition
-        self.obs[self.ptr] = obs
+        self.state[self.ptr] = obs
         self.action[self.ptr] = action
         self.reward[self.ptr] = reward
-        self.next_obs[self.ptr] = next_obs
+        self.next_state[self.ptr] = next_obs
         self.float_done[self.ptr] = float_done
         self.priority[self.ptr] = self.max_priority
         self.ptr = (self.ptr + 1) % self.replay_buffer_size
@@ -49,20 +49,20 @@ class LAPReplayBuffer(BaseReplayBuffer):
         """Sample."""
         current_priority_sum = torch.cumsum(self.priority[: self.size], 0)
         value = (
-            torch.randn(
+            torch.rand(
                 batch_size,
             )
             * current_priority_sum[-1]
         )
         ind = torch.searchsorted(current_priority_sum, value).cpu().data.numpy()
         if use_torch:
-            obs = torch.Tensor(self.obs[ind])
+            state = torch.Tensor(self.state[ind])
             action = torch.Tensor(self.action[ind])
             reward = torch.Tensor(self.reward[ind])
-            next_obs = torch.Tensor(self.next_obs[ind])
+            next_state = torch.Tensor(self.next_state[ind])
             done = torch.Tensor(self.float_done[ind])
         self.ind = ind
-        return dict(obs=obs, action=action, reward=reward, next_obs=next_obs, done=done)
+        return dict(state=state, action=action, reward=reward, next_state=next_state, done=done)
 
     def update_priority(self, priority: torch.Tensor) -> None:
         """Update priority."""
