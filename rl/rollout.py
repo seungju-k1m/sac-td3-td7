@@ -2,12 +2,11 @@
 from copy import deepcopy
 
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
-import numpy as np
 from rl.replay_buffer.base import REPLAYBUFFER
 
 
 from rl.sampler import SAMPLER, RandomSampler
-from rl.utils.annotation import OBSERVATION, BATCH
+from rl.utils.annotation import STATE, BATCH
 
 
 class Rollout:
@@ -25,7 +24,7 @@ class Rollout:
         self.sampler = RandomSampler(self.env.action_space)
         self.need_reset: bool = True
         self.n_episode: int = 0
-        self.obs: OBSERVATION
+        self.obs: STATE
 
     def set_sampler(self, sampler: SAMPLER) -> None:
         """Set sampler."""
@@ -39,12 +38,12 @@ class Rollout:
         """Sample action using policy."""
         if self.need_reset:
             self.need_reset = False
-            self.obs = self.env.reset(seed=np.random.randint(1, 1000000))[0]
+            self.obs = self.env.reset()[0]
         action = self.sampler.sample(self.obs)
-        next_obs, reward, truncated, terminated, info = self.env.step(action)
+        next_obs, reward, terminated, truncated, info = self.env.step(action)
         done = truncated or terminated
         self.replay_buffer.append(
-            deepcopy([self.obs, action, reward, next_obs, 1.0 - float(done)])
+            deepcopy([self.obs, action, reward, next_obs, 1.0 - float(terminated)])
         )
         self.obs = next_obs
         self.need_reset = done
