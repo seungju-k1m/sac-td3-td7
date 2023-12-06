@@ -4,14 +4,16 @@ from pathlib import Path
 from logging import Logger
 
 import torch
-import numpy as np
 import gymnasium as gym
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
+from gymnasium.wrappers.record_video import RecordVideo
+from tqdm import tqdm
 
 
-from rl.agent.base import Agent
+from rl.agent.abc import Agent
 from rl.replay_buffer.base import REPLAYBUFFER
 from rl.rollout import Rollout
+from rl.utils import NoStdStreams
 
 
 @torch.no_grad()
@@ -20,23 +22,28 @@ def test_agent(
     agent: Agent,
     deterministic: bool = True,
     n_episodes: int = 16,
-) -> None:
+) -> dict[str, float]:
     """Test agent."""
-    for _ in range(n_episodes):
-        obs, _ = env.reset(seed=np.random.randint(1, 10000000))
-        done = False
-        while not done:
-            action = agent.sample(obs, deterministic)
-            next_obs, _, truncated, terminated, _ = env.step(action)
-            obs = next_obs
-            done = truncated or terminated
-    mean = sum(env.return_queue) / len(env.return_queue)
-    min_return, max_return = min(env.return_queue), max(env.return_queue)
-    info = {"perf/mean": mean[0], "perf/min": min_return[0], "perf/max": max_return[0]}
-    return info
+    with NoStdStreams():
+        for idx in range(n_episodes):
+            obs, _ = env.reset()
+            done = False
+            while not done:
+                action = agent.sample(obs, deterministic)
+                next_obs, _, truncated, terminated, _ = env.step(action)
+                obs = next_obs
+                done = truncated or terminated
+        mean = sum(env.return_queue) / len(env.return_queue)
+        min_return, max_return = min(env.return_queue), max(env.return_queue)
+        info = {
+            "perf/mean": mean[0],
+            "perf/min": min_return[0],
+            "perf/max": max_return[0],
+        }
+        return info
 
 
-def _get_mean(eles: list[float | None]) -> float:
+def _calculate_mean_with_dirty_eles(eles: list[float | None]) -> float:
     """Get mean."""
     eles = [ele for ele in eles if ele is not None]
     mean = sum(eles) / len(eles) if len(eles) != 0 else -1e6
@@ -55,7 +62,8 @@ def logging(
     """Logging."""
     train_keies = list(train_infos[0].keys())
     logging_info = {
-        key: _get_mean(list(map(lambda x: x[key], train_infos))) for key in train_keies
+        key: _calculate_mean_with_dirty_eles(list(map(lambda x: x[key], train_infos)))
+        for key in train_keies
     }
     if start_logging:
         logger.info(
@@ -90,29 +98,59 @@ def run_train_ops(
 def run_rl(
     env: gym.Env,
     agent: Agent,
-    logger: Logger,
-    base_dir: Path,
     replay_buffer: REPLAYBUFFER,
+    logger: Logger,
     n_inital_exploration_steps: int = 25_000,
     n_iteration: int = 10_000_000,
     batch_size: int = 256,
     n_grad_step: int = 1,
     eval_period: int = 5000,
+    show_progressbar: bool = True,
+    record_video: bool = True,
+    use_gpu: bool = False,
     **kwargs,
 ) -> None:
     """Run SAC Algorithm."""
+    if use_gpu:
+        agent.to(torch.device("cuda"))
+    # Extract base_dir from logger.
+    base_dir = Path(logger.name).parent
+
     # Set Rollout
-    eval_env = gym.make(env.spec)
+    render_mode = "rgb_array" if record_video else None
+    eval_env = gym.make(env.spec, render_mode=render_mode)
+    eval_env.reset(seed=42)
 
     env = RecordEpisodeStatistics(env, 2)
     eval_env = RecordEpisodeStatistics(eval_env, 16)
+
+    if record_video:
+        video_dir = base_dir / "video"
+        video_dir.mkdir(exist_ok=True, parents=True)
+
+        # Only record last episode when evaluation.
+        def epi_trigger(x) -> bool:
+            if x % 16 == 0:
+                return True
+            else:
+                False
+
+        eval_env = RecordVideo(eval_env, str(video_dir), episode_trigger=epi_trigger)
     rollout = Rollout(env, replay_buffer)
+    rollout.set_sampler(agent)
 
     # Miscellaneous
     train_flag = False
     iteration = 0
     start_logging = True
     best_return = -1e8
+
+    # Progress bar
+    if show_progressbar:
+        progress_bar = tqdm(
+            range(0, n_iteration),
+        )
+        progress_bar.set_description("Iteration")
     # Run RL
     test_info = test_agent(eval_env, agent, True)
     while iteration < n_iteration:
@@ -123,12 +161,14 @@ def run_rl(
             done = rollout.sample()
             if train_flag is False:
                 if len(rollout.replay_buffer) >= n_inital_exploration_steps:
-                    rollout.set_sampler(agent)
                     train_flag = True
                 else:
                     continue
             train_infos += run_train_ops(n_grad_step, rollout, agent, batch_size)
             iteration += n_grad_step
+            if show_progressbar:
+                progress_bar.update(n_grad_step)
+                progress_bar.set_postfix(test_info)
             if iteration % eval_period == 0:
                 test_info = test_agent(eval_env, agent, deterministic=True)
                 if test_info["perf/mean"] > best_return:
