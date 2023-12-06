@@ -1,48 +1,62 @@
 """Run RL Algorithm."""
 
 from copy import deepcopy
-import random
 from pathlib import Path
 from logging import Logger
 
 import torch
-import numpy as np
 import gymnasium as gym
+from tqdm import tqdm
+from gymnasium.wrappers.record_video import RecordVideo
+from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
 
-from rl.agent.base import Agent
+from rl.agent.abc import Agent
 from rl.replay_buffer.base import REPLAYBUFFER
 from rl.rollout import Rollout
 from rl.runner.run import logging, run_train_ops, test_agent
-from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
 
 
-def run_rl_w_checkpoint(
+def run_rl_w_ckpt(
     env: gym.Env,
     agent: Agent,
-    logger: Logger,
-    base_dir: Path,
     replay_buffer: REPLAYBUFFER,
+    logger: Logger,
     n_inital_exploration_steps: int = 25_000,
     n_iteration: int = 10_000_000,
     batch_size: int = 256,
-    seed: int = 777,
-    max_episode_per_one_chpt: int = 20,
+    max_episodes_per_single_ckpt: int = 20,
     reset_weight: float = 0.9,
-    eval_period: int = 20_000,
+    eval_period: int = 5_000,
+    show_progressbar: bool = True,
+    record_video: bool = True,
+    use_gpu: bool = False,
     **kwargs,
 ) -> None:
     """Run SAC Algorithm."""
+
+    # Extract base_dir from logger.
+    base_dir = Path(logger.name).parent
     # Set seed
-    torch.manual_seed(seed)
-    random.seed(seed)
-    np.random.seed(seed)
 
     # Set Rollout
-    eval_env = gym.make(env.spec)
+    render_mode = "rgb_array" if record_video else None
+    eval_env = gym.make(env.spec, render_mode=render_mode)
+    eval_env.reset(seed=42)
 
     env = RecordEpisodeStatistics(env, 1)
     eval_env = RecordEpisodeStatistics(eval_env, 16)
-    rollout = Rollout(env, replay_buffer)
+    if record_video:
+        video_dir = base_dir / "video"
+        video_dir.mkdir(exist_ok=True, parents=True)
+
+        # Only record last episode when evaluation.
+        def epi_trigger(x) -> bool:
+            if x % 16 == 0:
+                return True
+            else:
+                False
+
+        eval_env = RecordVideo(eval_env, str(video_dir), episode_trigger=epi_trigger)
 
     # Miscellaneous
     train_flag = False
@@ -51,50 +65,75 @@ def run_rl_w_checkpoint(
     # Checkpoint
     best_min_return = -1e8
     update_steps_before_ckpt = int(75e4)
-    checkpoint_agent = deepcopy(agent)
+    ckpt_agent: Agent = deepcopy(agent)
+    if use_gpu:
+        agent.to(torch.device("cuda"))
+        ckpt_agent.to(torch.device("cuda"))
+
+    rollout = Rollout(env, replay_buffer)
+    rollout.set_sampler(agent)
+
+    # Progress bar
+    if show_progressbar:
+        progress_bar = tqdm(
+            range(0, n_iteration),
+        )
+        progress_bar.set_description("Iteration")
 
     # Run RL
     start_logging = True
-    update_checkpoint_agent = True
+    update_ckpt_agent = True
     best_return = -1e8
-    test_info = test_agent(eval_env, checkpoint_agent, True)
+    test_info = test_agent(eval_env, ckpt_agent, True)
     current_max_episode_per_one_ckpt = 1
+    eval_iteration = 0
+    sum_episode_length = 0
     while iteration < n_iteration:
         train_infos: list[dict] = list()
-        min_return = 1e8
-        sum_episode_length = 0
+        current_agent_min_return = 1e8
 
+        # Collect data with fixed agent.
         for idx in range(current_max_episode_per_one_ckpt):
-            # One Episode
             done = False
             while not done:
-                iteration += 1
                 done = rollout.sample()
                 if train_flag is False:
                     if len(rollout.replay_buffer) >= n_inital_exploration_steps:
-                        rollout.set_sampler(agent)
                         train_flag = True
                     else:
                         continue
-                if iteration % eval_period == 0:
-                    if update_checkpoint_agent:
-                        test_info = test_agent(eval_env, checkpoint_agent, True)
+
+                # Evaluate ckpt agent.
+                if iteration > eval_iteration:
+                    eval_iteration += eval_period
+                    if update_ckpt_agent:
+                        test_info = test_agent(eval_env, ckpt_agent, deterministic=True)
                         if test_info["perf/mean"] > best_return:
                             best_return = test_info["perf/mean"]
-                            checkpoint_agent.save(base_dir / "best.pkl")
-                        update_checkpoint_agent = False
+                            ckpt_agent.save(base_dir / "best.pkl")
+                        update_ckpt_agent = False
             episode_return: float = rollout.env.return_queue[-1][0]
             episode_length: float = rollout.env.length_queue[-1][0]
             sum_episode_length += episode_length
-            min_return = min(episode_return, min_return)
-            if min_return < best_min_return:
+            current_agent_min_return = min(episode_return, current_agent_min_return)
+
+            # If minimum performance of agnet is lower than best return,
+            # collecting data with current agent stops.
+            if current_agent_min_return < best_min_return:
                 break
-        if idx == current_max_episode_per_one_ckpt - 1:
-            best_min_return = min_return
-            checkpoint_agent = deepcopy(agent)
-            checkpoint_agent.save(base_dir / "ckpt.pkl")
-            if train_flag:
-                update_checkpoint_agent = True
+
+        # Update checkpoint agent.
+        if (
+            current_agent_min_return >= best_min_return
+            and idx == current_max_episode_per_one_ckpt - 1
+            and train_flag
+        ):
+            best_min_return = current_agent_min_return
+            ckpt_agent.load_state_dict(agent)
+            ckpt_agent.save(base_dir / "ckpt.pkl")
+            update_ckpt_agent = True
+
+        # Train ops
         if train_flag:
             train_infos = run_train_ops(sum_episode_length, rollout, agent, batch_size)
             # best_min_return *= reset_weight
@@ -102,12 +141,24 @@ def run_rl_w_checkpoint(
                 "rollout/return": episode_return,
                 "rollout/episode_length": episode_length,
             }
+            iteration += sum_episode_length
             logging(
                 iteration, logger, train_infos, test_info, rollout_info, start_logging
             )
-            if start_logging:
-                start_logging = False
-            if iteration > n_inital_exploration_steps + update_steps_before_ckpt:
-                current_max_episode_per_one_ckpt = max_episode_per_one_chpt
+            if show_progressbar:
+                progress_bar.update(sum_episode_length)
+                info = {
+                    "best_min_return": best_min_return,
+                    "current_min_return": current_agent_min_return,
+                }
+                info.update(test_info)
+                progress_bar.set_postfix(info)
+
+            if iteration > update_steps_before_ckpt:
+                current_max_episode_per_one_ckpt = max_episodes_per_single_ckpt
                 best_min_return *= reset_weight
                 reset_weight = 1.0
+
+            if start_logging:
+                start_logging = False
+            sum_episode_length = 0
