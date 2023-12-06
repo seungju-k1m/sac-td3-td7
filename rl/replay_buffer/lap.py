@@ -62,7 +62,9 @@ class LAPReplayBuffer(BaseReplayBuffer):
             next_state = torch.Tensor(self.next_state[ind])
             done = torch.Tensor(self.float_done[ind])
         self.ind = ind
-        return dict(state=state, action=action, reward=reward, next_state=next_state, done=done)
+        return dict(
+            state=state, action=action, reward=reward, next_state=next_state, done=done
+        )
 
     def update_priority(self, priority: torch.Tensor) -> None:
         """Update priority."""
