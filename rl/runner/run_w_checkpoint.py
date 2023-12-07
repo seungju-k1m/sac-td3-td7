@@ -105,7 +105,7 @@ def run_rl_w_ckpt(
 
                 # Evaluate ckpt agent.
                 if train_flag and iteration > eval_iteration:
-                    eval_iteration += eval_period
+                    eval_iteration = iteration + eval_period
                     test_info = test_agent(eval_env, ckpt_agent, deterministic=True)
                     if test_info["perf/mean"] > best_return:
                         best_return = test_info["perf/mean"]
