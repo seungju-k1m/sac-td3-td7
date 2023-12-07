@@ -49,8 +49,8 @@ class TD7(Agent, Sampler):
         self.target_policy = deepcopy(self.policy)
         self.target_q1 = deepcopy(self.q1)
         self.target_q2 = deepcopy(self.q2)
-        self.target_encoder = deepcopy(self.encoder)
-        self.fixed_target_encoder = deepcopy(self.encoder)
+        self.fixed_encoder = deepcopy(self.encoder)
+        self.fixed_encoder_target = deepcopy(self.encoder)
 
         # Save cconiguration.
         self.discount_factor = discount_factor
@@ -94,8 +94,8 @@ class TD7(Agent, Sampler):
         self.target_q1 = self.target_q1.to(device)
         self.target_q2 = self.target_q2.to(device)
         self.encoder = self.encoder.to(device)
-        self.target_encoder = self.target_encoder.to(device)
-        self.fixed_target_encoder = self.fixed_target_encoder.to(device)
+        self.fixed_encoder = self.fixed_encoder.to(device)
+        self.fixed_encoder_target = self.fixed_encoder_target.to(device)
         self.device = device
 
     def load_state_dict(self, agent: "TD7") -> None:
@@ -104,9 +104,9 @@ class TD7(Agent, Sampler):
         self.q2.load_state_dict(agent.q2.state_dict())
         self.policy.load_state_dict(agent.policy.state_dict())
         self.encoder.load_state_dict(agent.encoder.state_dict())
-        self.target_encoder.load_state_dict(agent.target_encoder.state_dict())
-        self.fixed_target_encoder.load_state_dict(
-            agent.fixed_target_encoder.state_dict()
+        self.fixed_encoder.load_state_dict(agent.fixed_encoder.state_dict())
+        self.fixed_encoder_target.load_state_dict(
+            agent.fixed_encoder_target.state_dict()
         )
         self.target_q1.load_state_dict(agent.target_q1.state_dict())
         self.target_q2.load_state_dict(agent.target_q2.state_dict())
@@ -145,7 +145,7 @@ class TD7(Agent, Sampler):
 
     def _inference_action(self, state: STATE) -> ACTION:
         """Only forward with policy."""
-        state_embedding = self.target_encoder.encode_state(state)
+        state_embedding = self.fixed_encoder.encode_state(state)
         action = self.policy.forward(state, state_embedding)
         return action
 
@@ -167,7 +167,7 @@ class TD7(Agent, Sampler):
         """Q fn train ops."""
         # make q target
         with torch.no_grad():
-            next_state_embedding = self.fixed_target_encoder.encode_state(next_state)
+            next_state_embedding = self.fixed_encoder_target.encode_state(next_state)
 
             noise = (torch.rand_like(action) * self.target_policy_noise).clamp(
                 -self.noise_clip, self.noise_clip
@@ -175,7 +175,7 @@ class TD7(Agent, Sampler):
             next_action = (
                 self.target_policy.forward(next_state, next_state_embedding) + noise
             ).clamp(-1.0, 1.0)
-            next_state_action_embedding = self.fixed_target_encoder.encode_state_action(
+            next_state_action_embedding = self.fixed_encoder_target.encode_state_action(
                 next_state_embedding, next_action
             )
 
@@ -200,8 +200,8 @@ class TD7(Agent, Sampler):
             self.value_max = max(self.value_max, q_target.max())
             self.value_min = min(self.value_min, q_target.min())
 
-            state_embedding = self.target_encoder.encode_state(state)
-            state_action_embedding = self.target_encoder.encode_state_action(
+            state_embedding = self.fixed_encoder.encode_state(state)
+            state_action_embedding = self.fixed_encoder.encode_state_action(
                 state_embedding, action
             )
         # calculate q value
@@ -210,9 +210,7 @@ class TD7(Agent, Sampler):
         if self.use_lap:
             td_loss1 = (q1 - q_target).abs()
             td_loss2 = (q2 - q_target).abs()
-            q1_loss = self._lap_huber(td_loss1)
-            q2_loss = self._lap_huber(td_loss2)
-            q_loss = q1_loss + q2_loss
+            q_loss = self._lap_huber(td_loss1 + td_loss2)
             # TODO: It is hard-coding
             priority = torch.max(td_loss1, td_loss2).clamp(1.0).pow(0.4).view(-1)
             return q_loss, priority.cpu().detach()
@@ -239,15 +237,15 @@ class TD7(Agent, Sampler):
         """Policy ops."""
         # Calculate policy loss.
         action = self._inference_action(state)
-        state_action = self.target_encoder.encode_state(state)
-        state_action_embedding = self.target_encoder.encode_state_action(
-            state_action, action
+        state_embedding = self.fixed_encoder.encode_state(state)
+        state_action_embedding = self.fixed_encoder.encode_state_action(
+            state_embedding, action
         )
 
-        q1 = self.q1.forward(state, action, state_action_embedding, state_action)
-        q2 = self.q2.forward(state, action, state_action_embedding, state_action)
-        policy_loss = -(q1 + q2) / 2.0
-        return policy_loss.mean()
+        q1 = self.q1.forward(state, action, state_action_embedding, state_embedding)
+        q2 = self.q2.forward(state, action, state_action_embedding, state_embedding)
+        policy_loss = -(q1.mean() + q2.mean())
+        return policy_loss
 
     @torch.no_grad()
     def hard_update_target_fns(self) -> None:
@@ -255,8 +253,8 @@ class TD7(Agent, Sampler):
         self.target_q1.load_state_dict(self.q1.state_dict())
         self.target_q2.load_state_dict(self.q2.state_dict())
         self.target_policy.load_state_dict(self.policy.state_dict())
-        self.fixed_target_encoder.load_state_dict(self.target_encoder.state_dict())
-        self.target_encoder.load_state_dict(self.encoder.state_dict())
+        self.fixed_encoder_target.load_state_dict(self.fixed_encoder.state_dict())
+        self.fixed_encoder.load_state_dict(self.encoder.state_dict())
 
     def train_ops(
         self,
@@ -388,7 +386,17 @@ def run_td7(
             logger,
             show_progressbar=show_progressbar,
             record_video=record_video,
+            seed=seed,
             **kwargs,
         )
     else:
-        run_rl_w_ckpt(env, agent, replay_buffer, logger, **kwargs)
+        run_rl_w_ckpt(
+            env,
+            agent,
+            replay_buffer,
+            logger,
+            seed=seed,
+            record_video=record_video,
+            show_progressbar=show_progressbar,
+            **kwargs,
+        )
