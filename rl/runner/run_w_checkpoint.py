@@ -26,10 +26,11 @@ def run_rl_w_ckpt(
     batch_size: int = 256,
     max_episodes_per_single_ckpt: int = 20,
     reset_weight: float = 0.9,
-    eval_period: int = 5_000,
+    eval_period: int = 10_000,
     show_progressbar: bool = True,
     record_video: bool = True,
     use_gpu: bool = False,
+    seed: int = 42,
     **kwargs,
 ) -> None:
     """Run SAC Algorithm."""
@@ -41,7 +42,7 @@ def run_rl_w_ckpt(
     # Set Rollout
     render_mode = "rgb_array" if record_video else None
     eval_env = gym.make(env.spec, render_mode=render_mode)
-    eval_env.reset(seed=42)
+    eval_env.reset(seed=seed + 100)
 
     env = RecordEpisodeStatistics(env, 1)
     eval_env = RecordEpisodeStatistics(eval_env, 16)
@@ -71,7 +72,6 @@ def run_rl_w_ckpt(
         ckpt_agent.to(torch.device("cuda"))
 
     rollout = Rollout(env, replay_buffer)
-    rollout.set_sampler(agent)
 
     # Progress bar
     if show_progressbar:
@@ -82,12 +82,11 @@ def run_rl_w_ckpt(
 
     # Run RL
     start_logging = True
-    update_ckpt_agent = True
     best_return = -1e8
     test_info = test_agent(eval_env, ckpt_agent, True)
     current_max_episode_per_one_ckpt = 1
-    eval_iteration = 0
     sum_episode_length = 0
+    eval_iteration = 0
     while iteration < n_iteration:
         train_infos: list[dict] = list()
         current_agent_min_return = 1e8
@@ -99,19 +98,18 @@ def run_rl_w_ckpt(
                 done = rollout.sample()
                 if train_flag is False:
                     if len(rollout.replay_buffer) >= n_inital_exploration_steps:
+                        rollout.set_sampler(agent)
                         train_flag = True
                     else:
                         continue
 
                 # Evaluate ckpt agent.
-                if iteration > eval_iteration:
+                if train_flag and iteration > eval_iteration:
                     eval_iteration += eval_period
-                    if update_ckpt_agent:
-                        test_info = test_agent(eval_env, ckpt_agent, deterministic=True)
-                        if test_info["perf/mean"] > best_return:
-                            best_return = test_info["perf/mean"]
-                            ckpt_agent.save(base_dir / "best.pkl")
-                        update_ckpt_agent = False
+                    test_info = test_agent(eval_env, ckpt_agent, deterministic=True)
+                    if test_info["perf/mean"] > best_return:
+                        best_return = test_info["perf/mean"]
+                        ckpt_agent.save(base_dir / "best.pkl")
             episode_return: float = rollout.env.return_queue[-1][0]
             episode_length: float = rollout.env.length_queue[-1][0]
             sum_episode_length += episode_length
@@ -131,7 +129,6 @@ def run_rl_w_ckpt(
             best_min_return = current_agent_min_return
             ckpt_agent.load_state_dict(agent)
             ckpt_agent.save(base_dir / "ckpt.pkl")
-            update_ckpt_agent = True
 
         # Train ops
         if train_flag:

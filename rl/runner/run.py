@@ -104,10 +104,11 @@ def run_rl(
     n_iteration: int = 10_000_000,
     batch_size: int = 256,
     n_grad_step: int = 1,
-    eval_period: int = 5000,
+    eval_period: int = 10_000,
     show_progressbar: bool = True,
     record_video: bool = True,
     use_gpu: bool = False,
+    seed: int = 42,
     **kwargs,
 ) -> None:
     """Run SAC Algorithm."""
@@ -119,7 +120,7 @@ def run_rl(
     # Set Rollout
     render_mode = "rgb_array" if record_video else None
     eval_env = gym.make(env.spec, render_mode=render_mode)
-    eval_env.reset(seed=42)
+    eval_env.reset(seed=seed + 100)
 
     env = RecordEpisodeStatistics(env, 2)
     eval_env = RecordEpisodeStatistics(eval_env, 16)
@@ -137,7 +138,6 @@ def run_rl(
 
         eval_env = RecordVideo(eval_env, str(video_dir), episode_trigger=epi_trigger)
     rollout = Rollout(env, replay_buffer)
-    rollout.set_sampler(agent)
 
     # Miscellaneous
     train_flag = False
@@ -161,6 +161,7 @@ def run_rl(
             done = rollout.sample()
             if train_flag is False:
                 if len(rollout.replay_buffer) >= n_inital_exploration_steps:
+                    rollout.set_sampler(agent)
                     train_flag = True
                 else:
                     continue
