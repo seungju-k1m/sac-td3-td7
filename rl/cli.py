@@ -1,15 +1,17 @@
 """Command Line Interface."""
+from copy import deepcopy
 import os
 import click
+import pandas as pd
 import ray
 
 
 from rl import SEEDS
-from rl.agent import run_sac
-from rl.agent.td3 import run_td3
-from rl.agent.td7 import run_td7
+from rl.agent import run_sac, run_td3, run_td7
+from rl.replayer import Replayer
 
 from rl.utils.cli_utils import configure
+from rl.utils.miscellaneous import convert_dict_as_param
 
 
 @click.command(name="sac")
@@ -298,3 +300,47 @@ def cli_run_td7(valid_benchmark: bool, **kwargs):
         ray.get(ray_objs)
     else:
         run_td7(**kwargs)
+
+
+@click.command(name="replay")
+@click.option(
+    "--root-dir",
+    required=True,
+    type=click.Path(exists=True),
+    help="RL Agent dir. save/<rl_alg>/*",
+)
+@click.option(
+    "--use-ckpt-model",
+    type=click.BOOL,
+    default=False,
+    show_default=True,
+    help="Use Checkpoint model.",
+    is_flag=True,
+)
+@click.option(
+    "--stochastic",
+    type=click.BOOL,
+    default=False,
+    show_default=True,
+    help="Sample action in stochastic way.",
+    is_flag=True,
+)
+@click.option("--seed", type=click.INT, default=42, show_default=True, help="Seed.")
+@click.option(
+    "--n-episodes", type=click.INT, default=8, show_default=True, help="# of episodes."
+)
+@click.option(
+    "--video-dir",
+    type=click.Path(exists=True),
+    show_default=True,
+    default=None,
+    help="Video directory.",
+)
+def cli_replay_agent(n_episodes: int, stochastic: bool, **kwargs) -> None:
+    """Replay Trained Agent."""
+    params = convert_dict_as_param(deepcopy(locals()))
+    print("-" * 5 + "[Replay Agent]" + "-" * 5)
+    print(" " + pd.Series(params).to_string().replace("\n", "\n "))
+    print()
+    replayer = Replayer(**kwargs)
+    replayer.run(n_episodes, stochastic)
