@@ -15,7 +15,7 @@ from rl.agent.abc import Agent
 from rl.replay_buffer.lap import LAPReplayBuffer
 from rl.replay_buffer.simple import SimpleReplayBuffer
 from rl.sampler import Sampler
-from rl.neural_network import Encoder, SALEActor, SALECritic, calculate_norm
+from rl.neural_network import Encoder, SALEActor, SALECritic
 from rl.utils.annotation import ACTION, BATCH, DONE, STATE, REWARD
 from rl.utils.miscellaneous import (
     convert_dict_as_param,
@@ -270,7 +270,6 @@ class TD7(Agent, Sampler):
         self.optim_encoder.zero_grad()
         encoder_loss.backward()
         self.optim_encoder.step()
-        info["norm/encoder"] = calculate_norm(self.encoder)
         info["train/encoder"] = float(encoder_loss.cpu().detach().numpy())
         self.zero_grad()
 
@@ -282,8 +281,6 @@ class TD7(Agent, Sampler):
             assert isinstance(replay_buffer, LAPReplayBuffer)
             replay_buffer.update_priority(priority)
         q_value_loss.backward()
-        info["norm/q1_value"] = calculate_norm(self.q1)
-        info["norm/q2_value"] = calculate_norm(self.q2)
         self.optim_q_fns.step()
         self.zero_grad()
         info["train/q_fn"] = float(q_value_loss.cpu().detach().numpy())
@@ -296,7 +293,6 @@ class TD7(Agent, Sampler):
             policy_loss = self._policy_train_ops(**batch)
             policy_loss.backward()
             info["train/policy"] = float(policy_loss.cpu().detach().numpy())
-            info["norm/policy"] = calculate_norm(self.policy)
 
             self.optim_policy.step()
             self.zero_grad()
