@@ -287,8 +287,6 @@ class TD7(Agent, Sampler):
 
         # Update policy.
         info["train/policy"] = None
-        info["norm/policy"] = None
-        info["grad/policy"] = None
         if self.n_runs % self.policy_freq == 0:
             policy_loss = self._policy_train_ops(**batch)
             policy_loss.backward()
