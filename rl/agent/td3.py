@@ -109,13 +109,11 @@ class TD3(Agent, Sampler):
                 state = state.unsqueeze(0)
             state = state.to(self.device)
             action = self._inference_action(state)
-            action = action.cpu().detach().numpy()[0]
             if not deterministic:
-                noise = np.random.normal(
-                    0, 1.0 * self.exploration_noise, size=action.shape
-                )
-                action += noise
-                action = np.clip(action, -1.0, 1.0)
+                noise = torch.randn_like(action) * self.exploration_noise
+                action += noise.to(self.device)
+            action = action.cpu().detach().numpy()[0]
+            action = np.clip(action, -1.0, 1.0)
         return action
 
     def _inference_action(self, state: STATE) -> ACTION:
@@ -141,7 +139,7 @@ class TD3(Agent, Sampler):
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         # make q target
         with torch.no_grad():
-            noise = (torch.rand_like(action) * self.target_policy_noise).clamp(
+            noise = (torch.randn_like(action) * self.target_policy_noise).clamp(
                 -self.noise_clip, self.noise_clip
             )
             next_action = (torch.tanh(self.target_policy(next_state)) + noise).clamp(

@@ -15,7 +15,7 @@ from rl.agent.abc import Agent
 from rl.replay_buffer.lap import LAPReplayBuffer
 from rl.replay_buffer.simple import SimpleReplayBuffer
 from rl.sampler import Sampler
-from rl.neural_network import calculate_grad_norm, Encoder, SALEActor, SALECritic
+from rl.neural_network import Encoder, SALEActor, SALECritic, calculate_norm
 from rl.utils.annotation import ACTION, BATCH, DONE, STATE, REWARD
 from rl.utils.miscellaneous import (
     convert_dict_as_param,
@@ -134,13 +134,11 @@ class TD7(Agent, Sampler):
                 state = state.unsqueeze(0)
             state = state.to(self.device)
             action = self._inference_action(state)
-            action = action.cpu().detach().numpy()[0]
             if not deterministic:
-                noise = np.random.normal(
-                    0, 1.0 * self.exploration_noise, size=action.shape
-                )
-                action += noise
-                action = np.clip(action, -1.0, 1.0)
+                noise = torch.randn_like(action) * self.exploration_noise
+                action += noise.to(self.device)
+            action = action.cpu().detach().numpy()[0]
+            action = np.clip(action, -1.0, 1.0)
         return action
 
     def _inference_action(self, state: STATE) -> ACTION:
@@ -169,7 +167,7 @@ class TD7(Agent, Sampler):
         with torch.no_grad():
             next_state_embedding = self.fixed_encoder_target.encode_state(next_state)
 
-            noise = (torch.rand_like(action) * self.target_policy_noise).clamp(
+            noise = (torch.randn_like(action) * self.target_policy_noise).clamp(
                 -self.noise_clip, self.noise_clip
             )
             next_action = (
@@ -272,7 +270,7 @@ class TD7(Agent, Sampler):
         self.optim_encoder.zero_grad()
         encoder_loss.backward()
         self.optim_encoder.step()
-        info["norm/encoder"] = calculate_grad_norm(self.encoder)
+        info["norm/encoder"] = calculate_norm(self.encoder)
         info["train/encoder"] = float(encoder_loss.cpu().detach().numpy())
         self.zero_grad()
 
@@ -284,8 +282,8 @@ class TD7(Agent, Sampler):
             assert isinstance(replay_buffer, LAPReplayBuffer)
             replay_buffer.update_priority(priority)
         q_value_loss.backward()
-        info["norm/q1_value"] = calculate_grad_norm(self.q1)
-        info["norm/q2_value"] = calculate_grad_norm(self.q2)
+        info["norm/q1_value"] = calculate_norm(self.q1)
+        info["norm/q2_value"] = calculate_norm(self.q2)
         self.optim_q_fns.step()
         self.zero_grad()
         info["train/q_fn"] = float(q_value_loss.cpu().detach().numpy())
@@ -293,12 +291,12 @@ class TD7(Agent, Sampler):
         # Update policy.
         info["train/policy"] = None
         info["norm/policy"] = None
+        info["grad/policy"] = None
         if self.n_runs % self.policy_freq == 0:
             policy_loss = self._policy_train_ops(**batch)
             policy_loss.backward()
             info["train/policy"] = float(policy_loss.cpu().detach().numpy())
-            info["norm/policy"] = calculate_grad_norm(self.policy)
-            # clip_grad_norm(self.policy, max_norm)
+            info["norm/policy"] = calculate_norm(self.policy)
 
             self.optim_policy.step()
             self.zero_grad()
