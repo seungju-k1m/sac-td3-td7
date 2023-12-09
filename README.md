@@ -20,10 +20,10 @@ ______________________________________________________________________
 
 ```bash
 # Clone repo.
-git clone https://github.com/seungju-k1m/reinforcement-learning
+git clone https://github.com/seungju-k1m/sac-td3-td7.git
 
 # Change Directory.
-cd reinforcement-learning
+cd sac-td3-td7
 
 # Make-up virtual environment. (python version is 3.10)
 python -m venv .venv --prompt rl
@@ -61,7 +61,7 @@ We compared the results of our Mujoco benchmark with the paper in two aspects: p
 | Anv-v4         | 300k <br> 1M | 6368 ± 706 <br> 9211 ± 771 | 6171 ± 831 <br> 8509 ± 422 |
 | HalfCheetah-v4 | 300k <br> 1M | Row 2, Col 3               | b                          |
 
-Our results mplementation has demonstrated performance slightly surpassing the level reported in the paper. However, we have observed a challenge in achieving training stability.
+Our implementation has demonstrated performance slightly surpassing the level reported in the paper. However, we have observed a challenge in achieving training stability.
 
 | Learning Curve                                       | Video                                         |
 | ---------------------------------------------------- | --------------------------------------------- |
