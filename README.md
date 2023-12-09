@@ -56,16 +56,16 @@ ______________________________________________________________________
 
 We compared the results of our Mujoco benchmark with the paper in two aspects: performance and training stability. Performance was measured as the average value across eight different seeds, while training stability was assessed by recording the agent's intermediate performance throughout the training process for each seed and visualizing these trendsation based on seeds and performance evolution during the training process.
 
-| Environment    | Timesteps    | TD7(Ours)                  | TD7(Paper)                   | TD3 (Ours) | SAC |
-| -------------- | ------------ | -------------------------- | ---------------------------- | ---------- | --- |
-| Anv-v4         | 300k <br> 1M | 6368 ± 706 <br> 9211 ± 771 | 6171 ± 831 <br> 8509 ± 422   | a          | b   |
-| HalfCheetah-v4 | 300k <br> 1M | Row 2, Col 3               | 15031 ± 401 <br> 17434 ± 155 | a          | b   |
+| Environment    | Timesteps    | TD7(Ours)                    | TD7(Paper)                   | TD3 (Ours) | SAC |
+| -------------- | ------------ | ---------------------------- | ---------------------------- | ---------- | --- |
+| Anv-v4         | 300k <br> 1M | 6368 ± 706 <br> 9211 ± 771   | 6171 ± 831 <br> 8509 ± 422   | a          | b   |
+| HalfCheetah-v4 | 300k <br> 1M | 14833 ± 575 <br> 17356 ± 299 | 15031 ± 401 <br> 17434 ± 155 | a          | b   |
 
 Our implementation has demonstrated performance slightly surpassing the level reported in the paper. However, we have observed a challenge in achieving training stability.
 
-| Learning Curve                                  | Video                                                                                                                     |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| ![image](./data/td7_ant.png) TD7(Ours) @ Ant-v4 | ![td7_ant](https://github.com/seungju-k1m/sac-td3-td7/assets/61035345/e6211f84-3202-4878-bc16-432c7b9e2cd4)Ant-v4         |
-|                                                 | ![td7_cheetah](https://github.com/seungju-k1m/sac-td3-td7/assets/61035345/9cebb702-29db-499e-8b25-345fb0fc863d)Cheetah-v4 |
+| Learning Curve                                                     | Video                                                                                                                         |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| ![image](./data/td7_ant.png) TD7(Ours) @ Ant-v4                    | ![td7_ant](https://github.com/seungju-k1m/sac-td3-td7/assets/61035345/e6211f84-3202-4878-bc16-432c7b9e2cd4)Ant-v4             |
+| ![cheetah_image](./data/td7_cheetah.png)TD7(Ours) @ HalfCheetah-v4 | ![td7_cheetah](https://github.com/seungju-k1m/sac-td3-td7/assets/61035345/9cebb702-29db-499e-8b25-345fb0fc863d)HalfCheetah-v4 |
 
 ______________________________________________________________________
