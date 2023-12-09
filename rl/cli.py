@@ -54,7 +54,7 @@ If tmp is negative, `auto_tmp_mode` works.",
     type=click.INT,
     default=5_000_000,
     show_default=True,
-    help="# of iteration.",
+    help="# of train iteration.",
 )
 @click.option(
     "--n-initial-exploration-steps",
@@ -93,16 +93,20 @@ with only different seeds means.",
 )
 @click.option("--seed", type=click.INT, default=42, show_default=True, help="Seed.")
 def cli_run_sac(valid_benchmark: bool, **kwargs):
-    """Run SAC Algorithm.
+    """
+    Run SAC Algorithm.
 
-    Examples:
+    Examples :
 
-        >>> sac Ant-v4 ant@auto\n
-        >>> # If you want to record video while training\n
-        >>> sac Ant-v4 ant@auto --record-video\n
-        >>> # If you want to run several experiments
-        in parallel with only different seeds,\n
-        >>> sac Ant-v4 ant@auto --valid-benchmark
+    # Train SAC Agent with Ant-v4 Env\n
+    >>> rl sac Ant-v4 ant@auto\n\n
+    # Train SAC Agent with fixed temperature\n
+    >>> rl sac Ant-v4 ant@tmp20 --tmp 0.2\n
+    # If you want to record video while training\n\n
+    >>> rl sac Ant-v4 ant@auto --record-video\n
+    # If you want to run several experiments
+    in parallel with only different seeds\n
+    >>> rl sac Ant-v4 ant@auto --valid-benchmark
     """
     if valid_benchmark:
         n_cpus = -1 if os.cpu_count() < 8 else 8
@@ -193,7 +197,19 @@ with only different seeds means.",
 )
 @click.option("--seed", type=click.INT, default=777, show_default=True, help="Seed.")
 def cli_run_td3(valid_benchmark: bool, **kwargs):
-    """Run TD3 Algorithm."""
+    """
+    Run TD3 Algorithm.
+
+    Examples :
+
+    # Train TD3 Agent with Ant-v4 Env\n
+    >>> rl td3 Ant-v4 td3\n\n
+    # If you want to record video while training\n\n
+    >>> rl td3 Ant-v4 ant@auto --record-video\n
+    # If you want to run several experiments
+    in parallel with only different seeds\n
+    >>> rl td3 Ant-v4 ant@auto --valid-benchmark
+    """
     if valid_benchmark:
         n_cpus = -1 if os.cpu_count() < 8 else 8
         ray.init(num_cpus=n_cpus)
@@ -282,7 +298,19 @@ with only different seeds means.",
 )
 @click.option("--seed", type=click.INT, default=777, show_default=True, help="Seed.")
 def cli_run_td7(valid_benchmark: bool, **kwargs):
-    """Run TD7 Algorithm."""
+    """
+    Run TD7 Algorithm.
+
+    Examples :
+
+    # Train TD7 Agent with Ant-v4 Env\n
+    >>> rl td7 Ant-v4 td3\n\n
+    # If you want to record video while training\n\n
+    >>> rl td7 Ant-v4 ant@auto --record-video\n
+    # If you want to run several experiments
+    in parallel with only different seeds\n
+    >>> rl td7 Ant-v4 ant@auto --valid-benchmark
+    """
     if valid_benchmark:
         n_cpus = -1 if os.cpu_count() < 8 else 8
         ray.init(num_cpus=n_cpus)
@@ -334,10 +362,22 @@ def cli_run_td7(valid_benchmark: bool, **kwargs):
     type=click.Path(exists=True),
     show_default=True,
     default=None,
-    help="Video directory.",
+    help="Video directory. If you don't set `video_dir`, replay vidoes \
+are saved in root_dir/replayer",
 )
 def cli_replay_agent(n_episodes: int, stochastic: bool, **kwargs) -> None:
-    """Replay Trained Agent."""
+    """
+    Replay Trained Agent.
+
+    Examples:
+
+    >>> replay --root-dir save/<RL_ALG>/<Train_DIR>\n
+    # If you want to sample action in stochastic way,\n
+    >>> replay --root-dir save/<RL_ALG>/<Train_DIR> --stochastic\n
+    # If you want to record 16 episodes,\n
+    >>> replay --root-dir save/<RL_ALG>/<Train_DIR> --n-episodes\n
+
+    """
     params = convert_dict_as_param(deepcopy(locals()))
     print("-" * 5 + "[Replay Agent]" + "-" * 5)
     print(" " + pd.Series(params).to_string().replace("\n", "\n "))

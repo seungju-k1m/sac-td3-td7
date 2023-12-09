@@ -37,11 +37,13 @@ pip install -r requirements.txt
 # Run CLI
 make cli
 
->>> sac --help
->>> td3 --help
->>> td7 --help
+>>> rl sac --help
+>>> rl td3 --help
+>>> rl td7 --help
 >>> # TD7 Example.
->>> td7 Ant-v4 ant@seed111 -seed 1111
+>>> rl td7 Ant-v4 ant@seed111 --seed 1111 --record-video
+>>> # Replay your training result.
+>>> replay save/td7/<your_train_dir>
 >>> # ctrl+D to exit cli mode.
 
 # or run python file.
