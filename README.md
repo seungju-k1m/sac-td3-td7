@@ -63,9 +63,10 @@ We compared the results of our Mujoco benchmark with the paper in two aspects: p
 
 Our implementation has demonstrated performance slightly surpassing the level reported in the paper. However, we have observed a challenge in achieving training stability.
 
-| Learning Curve                                  | Video                                         |
-| ----------------------------------------------- | --------------------------------------------- |
-| ![image](./data/td7_ant.png) TD7(Ours) @ Ant-v4 | ![td7_gif](data/td7_ant.gif)Ant-v4            |
-|                                                 | ![td7_ch_gif](data/td7_cheetah.gif)Cheetah-v4 |
+| Learning Curve                                  | Video                                                                                                             |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| ![image](./data/td7_ant.png) TD7(Ours) @ Ant-v4 | ![td7_ant](https://github.com/seungju-k1m/sac-td3-td7/assets/61035345/e6211f84-3202-4878-bc16-432c7b9e2cd4)Ant-v4 |
+|                                                 | ![td7_cheetah](https://github.com/seungju-k1m/sac-td3-td7/assets/61035345/9cebb702-29db-499e-8b25-345fb0fc863d)   |
+| Cheetah-v4                                      |                                                                                                                   |
 
 ______________________________________________________________________
