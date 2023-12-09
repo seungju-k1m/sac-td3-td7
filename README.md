@@ -52,20 +52,20 @@ python cli.py td7 Ant-v4 ant@seed111 -seed 1111
 
 ______________________________________________________________________
 
-## Experiment Results: TD7
+## Experiment Results
 
 We compared the results of our Mujoco benchmark with the paper in two aspects: performance and training stability. Performance was measured as the average value across eight different seeds, while training stability was assessed by recording the agent's intermediate performance throughout the training process for each seed and visualizing these trendsation based on seeds and performance evolution during the training process.
 
-| Environment    | Timesteps    | TD7(Ours)                  | TD7(Paper)                 |
-| -------------- | ------------ | -------------------------- | -------------------------- |
-| Anv-v4         | 300k <br> 1M | 6368 ± 706 <br> 9211 ± 771 | 6171 ± 831 <br> 8509 ± 422 |
-| HalfCheetah-v4 | 300k <br> 1M | Row 2, Col 3               | b                          |
+| Environment    | Timesteps    | TD7(Ours)                  | TD7(Paper)                   | TD3 (Ours) | SAC |
+| -------------- | ------------ | -------------------------- | ---------------------------- | ---------- | --- |
+| Anv-v4         | 300k <br> 1M | 6368 ± 706 <br> 9211 ± 771 | 6171 ± 831 <br> 8509 ± 422   | a          | b   |
+| HalfCheetah-v4 | 300k <br> 1M | Row 2, Col 3               | 15031 ± 401 <br> 17434 ± 155 | a          | b   |
 
 Our implementation has demonstrated performance slightly surpassing the level reported in the paper. However, we have observed a challenge in achieving training stability.
 
-| Learning Curve                                       | Video                                         |
-| ---------------------------------------------------- | --------------------------------------------- |
-| ![image](./data/td7_ant.png) Learning Curve @ Ant-v4 | ![td7_gif](data/td7_ant.gif)Ant-v4            |
-|                                                      | ![td7_ch_gif](data/td7_cheetah.gif)Cheetah-v4 |
+| Learning Curve                                  | Video                                         |
+| ----------------------------------------------- | --------------------------------------------- |
+| ![image](./data/td7_ant.png) TD7(Ours) @ Ant-v4 | ![td7_gif](data/td7_ant.gif)Ant-v4            |
+|                                                 | ![td7_ch_gif](data/td7_cheetah.gif)Cheetah-v4 |
 
 ______________________________________________________________________
