@@ -2,15 +2,20 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Imports: isort](https://img.shields.io/badge/imports-isort-white)](https://pycqa.github.io/isort/)
 
-# Off-policy Reinforcement Learning Algorithms with Know-how.
+# Collections of Off-Policy RL Algorithms: SAC, TD3 and TD7.
 
-Research into the advancement of reinforcement learning algorithms and their integration with deep learning has been actively conducted, leading to significant progress in deep reinforcement learning in recent times. In particular, attempts to apply deep learning to reinforcement learning have been facilitated by the recent developments in deep learning, resulting in many papers addressing this topic. 
+Welcome to our Off-Policy Reinforcement Learning (RL) Repository, where we bring together three state-of-the-art algorithms implemented in PyTorch: Soft Actor-Critic (SAC), Twin Delayed DDPG (TD3), and the latest innovation, TD7, introduced by S. Fujimoto in 2023.
 
-However, since deep learning is an empirically-driven field, using only established facts can be highly inefficient. Methods used to boost performance but not yet proven are referred to as "know-how." These know-how techniques are openly used and play a crucial role. 
+**Our repository aims to provide a clean and comprehensive implementation of these three off-policy RL algorithms. We meticulously experiment with the Mujoco benchmark across eight seeds, ensuring a thorough evaluation of each algorithm's capabilities.**
 
-**In this repository, various know-how techniques that have been used in deep reinforcement learning have been implemented as clean code. Also we have benchmarked using the Mujoco benchmark with at least 8 seeds.**
+RL Algorithms:
 
----
+- SAC: Soft Actor-Critic, a powerful off-policy algorithm known for its excellent sample efficiency and stable training.
+- TD3: Twin Delayed DDPG, a proven performer in off-policy learning, now accompanied by the latest enhancements from TD7.
+- TD7: The latest advancement introduced by S. Fujimoto, incorporating four additional "know-hows" to elevate both performance and stability.
+
+______________________________________________________________________
+
 ## Installation
 
 ```bash
@@ -29,18 +34,36 @@ source .venv/bin/activate
 # install
 pip install -r requirements.txt
 
+# Run CLI
+make cli
+
+>>> sac --help
+>>> td3 --help
+>>> td7 --help
+>>> # TD7 Example.
+>>> td7 Ant-v4 ant@seed111 -seed 1111
+>>> # ctrl+D to exit cli mode.
+
+# or run python file.
+python cli.py td7 Ant-v4 ant@seed111 -seed 1111
 ```
 
+______________________________________________________________________
 
+## Experiment Results: TD7
 
-----
-## Off-Policy Algorithm
+We compared the results of our Mujoco benchmark with the paper in two aspects: performance and training stability. Performance was measured as the average value across eight different seeds, while training stability was assessed by recording the agent's intermediate performance throughout the training process for each seed and visualizing these trendsation based on seeds and performance evolution during the training process.
 
+| Environment    | Timesteps    | TD7(Ours)                  | TD7(Paper)                 |
+| -------------- | ------------ | -------------------------- | -------------------------- |
+| Anv-v4         | 300k <br> 1M | 6368 ± 706 <br> 9211 ± 771 | 6171 ± 831 <br> 8509 ± 422 |
+| HalfCheetah-v4 | 300k <br> 1M | Row 2, Col 3               | b                          |
 
-We have chosen two of the most commonly used off-policy reinforcement learning algorithms as representatives. SAC and TD3 are examples of these algorithms.
+Our results mplementation has demonstrated performance slightly surpassing the level reported in the paper. However, we have observed a challenge in achieving training stability.
 
-1. [SAC](https://github.com/haarnoja/sac)
-2. [TD3](https://github.com/sfujim/TD3)
+| Learning Curve                                       | Video                                         |
+| ---------------------------------------------------- | --------------------------------------------- |
+| ![image](./data/td7_ant.png) Learning Curve @ Ant-v4 | ![td7_gif](data/td7_ant.gif)Ant-v4            |
+|                                                      | ![td7_ch_gif](data/td7_cheetah.gif)Cheetah-v4 |
 
----
-## Know-Hows
+______________________________________________________________________
