@@ -2,7 +2,7 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Imports: isort](https://img.shields.io/badge/imports-isort-white)](https://pycqa.github.io/isort/)
 
-# Collections of Off-Policy RL Algorithms: SAC, TD3 and TD7.
+# A collection of off-policy reinforcement learning algorithms with Mujoco benchmark results from 8 seeds.
 
 Welcome to our Off-Policy Reinforcement Learning (RL) Repository, where we bring together three state-of-the-art algorithms implemented in PyTorch: Soft Actor-Critic (SAC), Twin Delayed DDPG (TD3), and the latest innovation, TD7, introduced by S. Fujimoto in 2023.
 
@@ -57,9 +57,9 @@ ______________________________________________________________________
 We compared the results of our Mujoco benchmark with the paper in two aspects: performance and training stability. Performance was measured as the average value across eight different seeds, while training stability was assessed by recording the agent's intermediate performance throughout the training process for each seed and visualizing these trendsation based on seeds and performance evolution during the training process.
 
 | Environment    | Timesteps    | TD7(Ours)                    | TD7(Paper)                   | TD3(Ours) | SAC(Ours) |
-| -------------- | ------------ | ---------------------------- | ---------------------------- | ---------- | --- |
-| Anv-v4         | 300k <br> 1M | 6368 ± 706 <br> 9211 ± 771   | 6171 ± 831 <br> 8509 ± 422   | a          | b   |
-| HalfCheetah-v4 | 300k <br> 1M | 14833 ± 575 <br> 17356 ± 299 | 15031 ± 401 <br> 17434 ± 155 | a          | b   |
+| -------------- | ------------ | ---------------------------- | ---------------------------- | --------- | --------- |
+| Anv-v4         | 300k <br> 1M | 6368 ± 706 <br> 9211 ± 771   | 6171 ± 831 <br> 8509 ± 422   | a         | b         |
+| HalfCheetah-v4 | 300k <br> 1M | 14833 ± 575 <br> 17356 ± 299 | 15031 ± 401 <br> 17434 ± 155 | a         | b         |
 
 Our implementation has demonstrated performance slightly surpassing the level reported in the paper. However, we have observed a challenge in achieving training stability.
 
