@@ -280,12 +280,9 @@ def run_td3(
         use_lap=use_lap,
         **kwargs,
     )
-    replay_buffer = (
-        SimpleReplayBuffer(replay_buffer_size)
-        if not use_lap
-        else LAPReplayBuffer(
-            replay_buffer_size, env.observation_space, env.action_space
-        )
+    replay_class = LAPReplayBuffer if use_lap else SimpleReplayBuffer
+    replay_buffer = replay_class(
+        replay_buffer_size, env.observation_space, env.action_space
     )
     run_rl(
         env,

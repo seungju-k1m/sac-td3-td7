@@ -358,13 +358,11 @@ def run_td7(
     env = gym.make(env_id)
     env.reset(seed=seed)
 
-    replay_buffer = (
-        SimpleReplayBuffer(replay_buffer_size)
-        if without_lap
-        else LAPReplayBuffer(
-            replay_buffer_size, env.observation_space, env.action_space
-        )
+    replay_class = SimpleReplayBuffer if without_lap else LAPReplayBuffer
+    replay_buffer = replay_class(
+        replay_buffer_size, env.observation_space, env.action_space
     )
+
     agent = TD7(
         env_id,
         use_lap=not without_lap,

@@ -339,11 +339,11 @@ def run_sac(
     env = gym.make(env_id)
     env.reset(seed=seed)
 
-    replay_buffer = (
-        LAPReplayBuffer(replay_buffer_size, env.observation_space, env.action_space)
-        if use_lap
-        else SimpleReplayBuffer(replay_buffer_size)
+    replay_class = LAPReplayBuffer if use_lap else SimpleReplayBuffer
+    replay_buffer = replay_class(
+        replay_buffer_size, env.observation_space, env.action_space
     )
+
     agent = SAC(
         env_id,
         **kwargs,
