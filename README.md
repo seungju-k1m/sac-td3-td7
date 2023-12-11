@@ -34,7 +34,15 @@ source .venv/bin/activate
 # install
 pip install -r requirements.txt
 
-# Run CLI
+```
+
+______________________________________________________________________
+
+## Example codes
+
+```
+# There are two ways.
+# First, Use cli
 make cli
 
 >>> rl sac --help
@@ -46,7 +54,7 @@ make cli
 >>> replay save/td7/<your_train_dir>
 >>> # ctrl+D to exit cli mode.
 
-# or run python file.
+# Second, run python file.
 python cli.py td7 Ant-v4 ant@seed111 -seed 1111
 ```
 
