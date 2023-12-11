@@ -100,20 +100,17 @@ def run_rl(
     agent: Agent,
     replay_buffer: REPLAYBUFFER,
     logger: Logger,
-    n_inital_exploration_steps: int = 25_000,
+    n_initial_exploration_steps: int = 25_000,
     n_iteration: int = 10_000_000,
     batch_size: int = 256,
     n_grad_step: int = 1,
     eval_period: int = 10_000,
     show_progressbar: bool = True,
     record_video: bool = True,
-    use_gpu: bool = False,
     seed: int = 42,
     **kwargs,
 ) -> None:
     """Run SAC Algorithm."""
-    if use_gpu:
-        agent.to(torch.device("cuda"))
     # Extract base_dir from logger.
     base_dir = Path(logger.name).parent
 
@@ -160,7 +157,7 @@ def run_rl(
         while not done:
             done = rollout.sample()
             if train_flag is False:
-                if len(rollout.replay_buffer) >= n_inital_exploration_steps:
+                if len(rollout.replay_buffer) >= n_initial_exploration_steps:
                     rollout.set_sampler(agent)
                     train_flag = True
                 else:

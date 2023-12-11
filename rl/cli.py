@@ -59,7 +59,7 @@ If tmp is negative, `auto_tmp_mode` works.",
 @click.option(
     "--n-initial-exploration-steps",
     type=click.INT,
-    default=10_000,
+    default=25_000,
     show_default=True,
     help="# of transition using randon policy.",
 )
@@ -81,14 +81,6 @@ with only different seeds means.",
     default=False,
     show_default=True,
     help="Record Video.",
-    is_flag=True,
-)
-@click.option(
-    "--use-gpu",
-    type=click.BOOL,
-    default=False,
-    show_default=True,
-    help="Use GPU.",
     is_flag=True,
 )
 @click.option("--seed", type=click.INT, default=42, show_default=True, help="Seed.")

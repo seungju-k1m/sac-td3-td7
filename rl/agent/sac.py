@@ -95,8 +95,6 @@ class SAC(Agent, Sampler):
         self.policy.load_state_dict(agent.policy.state_dict())
         self.target_q1.load_state_dict(agent.target_q1.state_dict())
         self.target_q2.load_state_dict(agent.target_q2.state_dict())
-        if self.auto_tmp_mode:
-            self.tmp = agent.tmp
 
     def make_optimizers(
         self, policy_lr: float, critic_lr: float
@@ -132,12 +130,11 @@ class SAC(Agent, Sampler):
         state = state.to(self.device)
 
         # Generate action via policy.
+        distribution = self._inference(state)
         if deterministic:
-            distribution = self._inference(state)
-            action = self._rsample(distribution)[0]
-        else:
-            distribution = self._inference(state)
             action = torch.tanh(distribution.mean)
+        else:
+            action = self._rsample(distribution)[0]
 
         # Convert it as numpy for interfacing `gym.Env``.
         action = action.cpu().detach().numpy()[0]
@@ -275,6 +272,7 @@ class SAC(Agent, Sampler):
         # (Optional) Train temperatgure.
         if self.auto_tmp_mode:
             info["tmp"] = float(self.tmp.exp().data.detach().cpu().numpy())
+            info["norm/tmp"] = float(self.tmp.grad.data)
         self.optim_policy.step()
         if self.auto_tmp_mode:
             self.optim_tmp.step()
