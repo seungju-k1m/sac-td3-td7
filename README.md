@@ -66,9 +66,9 @@ ______________________________________________________________________
 
 We compared the results of our Mujoco benchmark with the paper in two aspects: performance and training stability. Performance was measured as the average value across eight different seeds, while training stability was assessed by recording the agent's intermediate performance throughout the training process for each seed and visualizing these trendsation based on seeds and performance evolution during the training process.
 
-| Environment    | Timesteps    | TD7(Ours)                    | TD7(Paper)                   | TD3(Ours)                   | SAC (Ours)                  | SAC (Paper)                  |
-| -------------- | ------------ | ---------------------------- | ---------------------------- | --------------------------- | --------------------------- | ---------------------------- |
-| Anv-v4         | 300k <br> 1M | 6368 ± 706 <br> 9211 ± 771   | 6171 ± 831 <br> 8509 ± 422   | 3446 ± 640 <br> 5929 ± 338  | 2363 ± 357 <br> 4835 ± 702  | 1478 ± 354 <br> 3681 ± 506   |
-| HalfCheetah-v4 | 300k <br> 1M | 14833 ± 575 <br> 17356 ± 299 | 15031 ± 401 <br> 17434 ± 155 | 8124 ± 955 <br> 10771 ± 762 | 7816 ± 475 <br> 10267 ± 901 | 8052 ± 515  <br> 10484 ± 659 |
+| Environment    | Timesteps    | TD7(Ours)                    | TD7(Paper)                   | TD3(Ours)                   | SAC (Ours)                  |
+| -------------- | ------------ | ---------------------------- | ---------------------------- | --------------------------- | --------------------------- |
+| Anv-v4         | 300k <br> 1M | 6368 ± 706 <br> 9211 ± 771   | 6171 ± 831 <br> 8509 ± 422   | 3446 ± 640 <br> 5929 ± 338  | 2363 ± 357 <br> 4835 ± 702  |
+| HalfCheetah-v4 | 300k <br> 1M | 14833 ± 575 <br> 17356 ± 299 | 15031 ± 401 <br> 17434 ± 155 | 8124 ± 955 <br> 10771 ± 762 | 7816 ± 475 <br> 10267 ± 901 |
 
 ______________________________________________________________________
