@@ -6,7 +6,7 @@ from rl.cli import cli_run_sac, cli_run_td3, cli_run_td7, cli_replay_agent
 
 @click.group()
 def main():
-    """CLI. Hello"""
+    """CLI."""
 
 
 @click.group()
