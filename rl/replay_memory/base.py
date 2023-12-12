@@ -3,10 +3,12 @@ from typing import Any, TypeVar
 from rl.utils.annotation import BATCH
 
 
-REPLAYBUFFER = TypeVar("REPLAYBUFFER", bound="BaseReplayBuffer")
+REPLAYMEMORY = TypeVar("REPLAYMEMORY", bound="BaseReplayMemory")
 
 
-class BaseReplayBuffer(ABC):
+class BaseReplayMemory(ABC):
+    """Abstract Class for Replay Memory."""
+
     def __init__(self, replay_buffer_size: int, **kwargs) -> None:
         """Initialize."""
         self.replay_buffer_size = replay_buffer_size

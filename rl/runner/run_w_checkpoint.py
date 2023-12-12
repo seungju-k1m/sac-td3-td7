@@ -1,6 +1,7 @@
 """Run RL Algorithm."""
 
 from copy import deepcopy
+from datetime import datetime
 from pathlib import Path
 from logging import Logger
 
@@ -10,17 +11,19 @@ from tqdm import tqdm
 from gymnasium.wrappers.record_video import RecordVideo
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
 
+from rl import SAVE_DIR
 from rl.agent.abc import Agent
-from rl.replay_buffer.base import REPLAYBUFFER
+from rl.replay_memory.base import REPLAYMEMORY
 from rl.rollout import Rollout
 from rl.runner.run import logging, run_train_ops, test_agent
+from rl.utils import setup_logger
 
 
 def run_rl_w_ckpt(
     env: gym.Env,
     agent: Agent,
-    replay_buffer: REPLAYBUFFER,
-    logger: Logger,
+    replay_buffer: REPLAYMEMORY,
+    logger: Logger | None = None,
     n_inital_exploration_steps: int = 25_000,
     n_iteration: int = 10_000_000,
     batch_size: int = 256,
@@ -34,10 +37,15 @@ def run_rl_w_ckpt(
     **kwargs,
 ) -> None:
     """Run SAC Algorithm."""
-
+    # Make Logger.
+    if logger is None:
+        timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
+        base_dir = SAVE_DIR / timestamp
+        base_dir.mkdir(exist_ok=True, parents=True)
+        print(f"Your experiment will be tracked in {base_dir} !!")
+        logger = setup_logger(str(base_dir / "training.log"))
     # Extract base_dir from logger.
     base_dir = Path(logger.name).parent
-    # Set seed
 
     # Set Rollout
     render_mode = "rgb_array" if record_video else None

@@ -2,10 +2,13 @@
 
 import os
 import logging
+import random
 import sys
 from typing import Any
 
 import gymnasium as gym
+import numpy as np
+import torch
 
 
 def convert_dict_as_param(d_str_value: dict[str, Any]) -> dict[str, Any]:
@@ -30,6 +33,13 @@ def setup_logger(path: str, level=logging.DEBUG) -> logging.Logger:
     # Add the file handler to the logger
     logger.addHandler(file_handler)
     return logger
+
+
+def fix_seed(seed: int) -> None:
+    """Fix seed for reproducibility."""
+    torch.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
 
 
 def clamp(x: float, min_x: float, max_x: float) -> float:

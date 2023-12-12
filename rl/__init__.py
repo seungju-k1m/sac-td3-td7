@@ -1,7 +1,7 @@
 from .vars import SAVE_DIR, SEEDS
 from . import utils
 from . import neural_network
-from . import replay_buffer
+from . import replay_memory
 from . import sampler
 from . import rollout
 from . import agent
@@ -14,7 +14,7 @@ __all__ = [
     "SEEDS",
     "utils",
     "agent",
-    "replay_buffer",
+    "replay_memory",
     "sampler",
     "rollout",
     "neural_network",

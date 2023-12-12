@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 
 from rl.agent.abc import Agent
-from rl.replay_buffer.base import REPLAYBUFFER
+from rl.replay_memory.base import REPLAYMEMORY
 from rl.rollout import Rollout
 from rl.utils import NoStdStreams
 
@@ -98,7 +98,7 @@ def run_train_ops(
 def run_rl(
     env: gym.Env,
     agent: Agent,
-    replay_buffer: REPLAYBUFFER,
+    replay_buffer: REPLAYMEMORY,
     logger: Logger,
     n_initial_exploration_steps: int = 25_000,
     n_iteration: int = 10_000_000,

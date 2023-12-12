@@ -1,6 +1,5 @@
 """TD7."""
 
-import random
 import numpy as np
 import pandas as pd
 from copy import deepcopy
@@ -12,13 +11,14 @@ import gymnasium as gym
 
 from rl import SAVE_DIR
 from rl.agent.abc import Agent
-from rl.replay_buffer.lap import LAPReplayBuffer
-from rl.replay_buffer.simple import SimpleReplayBuffer
+from rl.replay_memory.lap import LAPReplayMemory
+from rl.replay_memory.simple import SimpleReplayMemory
 from rl.sampler import Sampler
 from rl.neural_network import Encoder, SALEActor, SALECritic
 from rl.utils.annotation import ACTION, BATCH, DONE, STATE, REWARD
 from rl.utils.miscellaneous import (
     convert_dict_as_param,
+    fix_seed,
     get_state_action_dims,
     setup_logger,
 )
@@ -257,7 +257,7 @@ class TD7(Agent, Sampler):
     def train_ops(
         self,
         batch: BATCH,
-        replay_buffer: LAPReplayBuffer | None = None,
+        replay_buffer: LAPReplayMemory | None = None,
         *args,
         **kwargs,
     ) -> None:
@@ -278,7 +278,7 @@ class TD7(Agent, Sampler):
         q_value_loss = self._q_train_ops(**batch)
         if isinstance(q_value_loss, tuple):
             q_value_loss, priority = q_value_loss
-            assert isinstance(replay_buffer, LAPReplayBuffer)
+            assert isinstance(replay_buffer, LAPReplayMemory)
             replay_buffer.update_priority(priority)
         q_value_loss.backward()
         self.optim_q_fns.step()
@@ -350,18 +350,13 @@ def run_td7(
         yaml.dump(params, file_handler)
 
     # Set Seed.
-    torch.manual_seed(seed)
-    random.seed(seed)
-    np.random.seed(seed)
-
+    fix_seed(seed)
     # Make envs
     env = gym.make(env_id)
     env.reset(seed=seed)
 
-    replay_class = SimpleReplayBuffer if without_lap else LAPReplayBuffer
-    replay_buffer = replay_class(
-        replay_buffer_size, env.observation_space, env.action_space
-    )
+    replay_class = SimpleReplayMemory if without_lap else LAPReplayMemory
+    replay_buffer = replay_class(replay_buffer_size, env_id)
 
     agent = TD7(
         env_id,

@@ -1,7 +1,6 @@
 """Soft Actor Critic."""
 
 import json
-import random
 import numpy as np
 import pandas as pd
 from copy import deepcopy
@@ -13,13 +12,14 @@ from torch import nn
 
 from rl import SAVE_DIR
 from rl.agent.abc import Agent
-from rl.replay_buffer.lap import LAPReplayBuffer
-from rl.replay_buffer.simple import SimpleReplayBuffer
+from rl.replay_memory.lap import LAPReplayMemory
+from rl.replay_memory.simple import SimpleReplayMemory
 from rl.sampler import Sampler
 from rl.neural_network import calculate_grad_norm, MLPPolicy, MLPQ
 from rl.utils.annotation import ACTION, BATCH, DONE, STATE, REWARD
 from rl.utils.miscellaneous import (
     convert_dict_as_param,
+    fix_seed,
     get_state_action_dims,
     setup_logger,
 )
@@ -190,7 +190,7 @@ class TD3(Agent, Sampler):
     def train_ops(
         self,
         batch: BATCH,
-        replay_buffer: LAPReplayBuffer | None = None,
+        replay_buffer: LAPReplayMemory | None = None,
         *args,
         **kwargs,
     ) -> None:
@@ -202,7 +202,7 @@ class TD3(Agent, Sampler):
         q_value_loss = self._q_train_ops(**batch)
         if isinstance(q_value_loss, tuple):
             q_value_loss, priority = q_value_loss
-            assert isinstance(replay_buffer, LAPReplayBuffer)
+            assert isinstance(replay_buffer, LAPReplayMemory)
             replay_buffer.update_priority(priority)
         q_value_loss.backward()
         info["norm/q1_value"] = calculate_grad_norm(self.q1)
@@ -269,9 +269,7 @@ def run_td3(
     with open(base_dir / "config.json", "w") as file_handler:
         json.dump(params, file_handler, indent=4)
     # Set Seed.
-    torch.manual_seed(seed)
-    random.seed(seed)
-    np.random.seed(seed)
+    fix_seed(seed)
 
     # Make envs
     env = gym.make(env_id)
@@ -280,10 +278,8 @@ def run_td3(
         use_lap=use_lap,
         **kwargs,
     )
-    replay_class = LAPReplayBuffer if use_lap else SimpleReplayBuffer
-    replay_buffer = replay_class(
-        replay_buffer_size, env.observation_space, env.action_space
-    )
+    replay_class = LAPReplayMemory if use_lap else SimpleReplayMemory
+    replay_buffer = replay_class(replay_buffer_size, env_id)
     run_rl(
         env,
         agent,

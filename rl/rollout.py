@@ -2,7 +2,7 @@
 from copy import deepcopy
 
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
-from rl.replay_buffer.base import REPLAYBUFFER
+from rl.replay_memory.base import REPLAYMEMORY
 
 
 from rl.sampler import SAMPLER, RandomSampler
@@ -15,7 +15,7 @@ class Rollout:
     def __init__(
         self,
         env: RecordEpisodeStatistics,
-        replay_buffer: REPLAYBUFFER,
+        replay_buffer: REPLAYMEMORY,
     ):
         """Initialize."""
         self.env = env
