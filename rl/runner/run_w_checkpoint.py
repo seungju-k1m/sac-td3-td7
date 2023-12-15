@@ -1,9 +1,7 @@
 """Run RL Algorithm."""
 
 from copy import deepcopy
-from datetime import datetime
 from pathlib import Path
-from logging import Logger
 
 import torch
 import gymnasium as gym
@@ -11,11 +9,10 @@ from tqdm import tqdm
 from gymnasium.wrappers.record_video import RecordVideo
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
 
-from rl import SAVE_DIR
 from rl.agent.abc import Agent
 from rl.replay_memory.base import REPLAYMEMORY
 from rl.rollout import Rollout
-from rl.runner.run import logging, run_train_ops, test_agent
+from rl.runner.run import log_train_infos, run_train_ops, test_agent
 from rl.utils import setup_logger
 
 
@@ -23,7 +20,7 @@ def run_rl_w_ckpt(
     env: gym.Env,
     agent: Agent,
     replay_buffer: REPLAYMEMORY,
-    logger: Logger | None = None,
+    base_dir: Path,
     n_inital_exploration_steps: int = 25_000,
     n_iteration: int = 10_000_000,
     batch_size: int = 256,
@@ -38,14 +35,10 @@ def run_rl_w_ckpt(
 ) -> None:
     """Run SAC Algorithm."""
     # Make Logger.
-    if logger is None:
-        timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
-        base_dir = SAVE_DIR / timestamp
-        base_dir.mkdir(exist_ok=True, parents=True)
-        print(f"Your experiment will be tracked in {base_dir} !!")
-        logger = setup_logger(str(base_dir / "training.log"))
-    # Extract base_dir from logger.
-    base_dir = Path(logger.name).parent
+    base_dir.mkdir(exist_ok=True, parents=True)
+    print(f"Your experiment will be tracked in {base_dir} !!")
+    train_logger = setup_logger(str(base_dir / "train.log"))
+    eval_logger = setup_logger(str(base_dir / "eval.log"))
 
     # Set Rollout
     render_mode = "rgb_array" if record_video else None
@@ -93,17 +86,20 @@ def run_rl_w_ckpt(
     best_return = -1e8
     test_info = test_agent(eval_env, ckpt_agent, True)
     current_max_episode_per_one_ckpt = 1
+    timestep = 0
+
+    # Init eval logger
+    eval_logger.info(",".join(["timestep"] + list(test_info.keys())))
     sum_episode_length = 0
-    eval_iteration = 0
     while iteration < n_iteration:
         train_infos: list[dict] = list()
         current_agent_min_return = 1e8
-
         # Collect data with fixed agent.
         for idx in range(current_max_episode_per_one_ckpt):
             done = False
             while not done:
                 done = rollout.sample()
+                timestep += 1
                 if train_flag is False:
                     if len(rollout.replay_buffer) >= n_inital_exploration_steps:
                         rollout.set_sampler(agent)
@@ -112,15 +108,17 @@ def run_rl_w_ckpt(
                         continue
 
                 # Evaluate ckpt agent.
-                if train_flag and iteration > eval_iteration:
-                    eval_iteration = iteration + eval_period
+                if train_flag and timestep % eval_period == 0:
                     test_info = test_agent(eval_env, ckpt_agent, deterministic=True)
                     if test_info["perf/mean"] > best_return:
                         best_return = test_info["perf/mean"]
                         ckpt_agent.save(base_dir / "best.pkl")
+                    stats = ",".join([f"{value:.3f}" for value in test_info.values()])
+                    eval_logger.info(f"{timestep},{stats}")
             episode_return: float = rollout.env.return_queue[-1][0]
             episode_length: float = rollout.env.length_queue[-1][0]
-            sum_episode_length += episode_length
+            if train_flag:
+                sum_episode_length += episode_length
             current_agent_min_return = min(episode_return, current_agent_min_return)
 
             # If minimum performance of agnet is lower than best return,
@@ -147,8 +145,13 @@ def run_rl_w_ckpt(
                 "rollout/episode_length": episode_length,
             }
             iteration += sum_episode_length
-            logging(
-                iteration, logger, train_infos, test_info, rollout_info, start_logging
+            log_train_infos(
+                iteration,
+                train_logger,
+                train_infos,
+                test_info,
+                rollout_info,
+                start_logging,
             )
             if show_progressbar:
                 progress_bar.update(sum_episode_length)
@@ -157,6 +160,12 @@ def run_rl_w_ckpt(
                     "current_min_return": current_agent_min_return,
                 }
                 info.update(test_info)
+                info.update(
+                    {
+                        "priority": rollout.replay_buffer.max_priority,
+                        "size": rollout.replay_buffer.size,
+                    }
+                )
                 progress_bar.set_postfix(info)
 
             if iteration > update_steps_before_ckpt:

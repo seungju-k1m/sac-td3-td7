@@ -1,7 +1,7 @@
 """Run RL Algorithm."""
 
-from pathlib import Path
 from logging import Logger
+from pathlib import Path
 
 import torch
 import gymnasium as gym
@@ -14,6 +14,7 @@ from rl.agent.abc import Agent
 from rl.replay_memory.base import REPLAYMEMORY
 from rl.rollout import Rollout
 from rl.utils import NoStdStreams
+from rl.utils.miscellaneous import setup_logger
 
 
 @torch.no_grad()
@@ -50,7 +51,7 @@ def _calculate_mean_with_dirty_eles(eles: list[float | None]) -> float:
     return mean
 
 
-def logging(
+def log_train_infos(
     iteration: int,
     logger: Logger,
     train_infos: list[dict],
@@ -99,7 +100,7 @@ def run_rl(
     env: gym.Env,
     agent: Agent,
     replay_buffer: REPLAYMEMORY,
-    logger: Logger,
+    base_dir: Path,
     n_initial_exploration_steps: int = 25_000,
     n_iteration: int = 10_000_000,
     batch_size: int = 256,
@@ -111,8 +112,10 @@ def run_rl(
     **kwargs,
 ) -> None:
     """Run SAC Algorithm."""
-    # Extract base_dir from logger.
-    base_dir = Path(logger.name).parent
+    # Make logger
+    print(f"Your experiment will be tracked in {base_dir} !!")
+    train_logger = setup_logger(str(base_dir / "train.log"))
+    eval_logger = setup_logger(str(base_dir / "eval.log"))
 
     # Set Rollout
     render_mode = "rgb_array" if record_video else None
@@ -139,6 +142,7 @@ def run_rl(
     # Miscellaneous
     train_flag = False
     iteration = 0
+    timestep = 0
     start_logging = True
     best_return = -1e8
 
@@ -150,12 +154,16 @@ def run_rl(
         progress_bar.set_description("Iteration")
     # Run RL
     test_info = test_agent(eval_env, agent, True)
+
+    # Init eval logger
+    eval_logger.info(",".join(["timestep"] + list(test_info.keys())))
     while iteration < n_iteration:
         done = False
         train_infos: list[dict] = list()
         # One Episode.
         while not done:
             done = rollout.sample()
+            timestep += 1
             if train_flag is False:
                 if len(rollout.replay_buffer) >= n_initial_exploration_steps:
                     rollout.set_sampler(agent)
@@ -167,11 +175,15 @@ def run_rl(
             if show_progressbar:
                 progress_bar.update(n_grad_step)
                 progress_bar.set_postfix(test_info)
-            if iteration % eval_period == 0:
+            if timestep % eval_period == 0 and train_flag:
                 test_info = test_agent(eval_env, agent, deterministic=True)
                 if test_info["perf/mean"] > best_return:
                     best_return = test_info["perf/mean"]
                     agent.save(base_dir / "best.pkl")
+                eval_logger.info(
+                    str(int(timestep))
+                    + ",".join([f"{value:.3f}" for value in test_info.values()])
+                )
         episode_return: float = rollout.env.return_queue[-1][0]
         episode_length: float = rollout.env.length_queue[-1][0]
         if len(train_infos) > 0:
@@ -179,8 +191,13 @@ def run_rl(
                 "rollout/return": episode_return,
                 "rollout/episode_length": episode_length,
             }
-            logging(
-                iteration, logger, train_infos, test_info, rollout_info, start_logging
+            log_train_infos(
+                iteration,
+                train_logger,
+                train_infos,
+                test_info,
+                rollout_info,
+                start_logging,
             )
             if start_logging:
                 start_logging = False
