@@ -239,7 +239,6 @@ def run_td3(
     seed: int = 777,
     use_lap: bool = False,
     replay_buffer_size: int = 1_000_000,
-    benchmark_idx: int = 0,
     record_video: bool = False,
     show_progressbar: bool = True,
     **kwargs,
@@ -250,21 +249,9 @@ def run_td3(
     print("-" * 5 + "[TD3]" + "-" * 5)
     print(" " + pd.Series(params).to_string().replace("\n", "\n "))
     print()
-    if benchmark_idx > 0:
-        base_dir = (
-            SAVE_DIR
-            / "VALID"
-            / env_id
-            / "TD3"
-            / f"TD3-{rl_run_name}"
-            / str(benchmark_idx)
-        )
-        show_progressbar = False
-        record_video = False
-    else:
-        timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
-        rl_run_name = f"{rl_run_name}-{timestamp}"
-        base_dir = SAVE_DIR / "TD3" / rl_run_name
+    timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
+    rl_run_name = f"{rl_run_name}-{timestamp}"
+    base_dir = SAVE_DIR / "TD3" / rl_run_name
     base_dir.mkdir(exist_ok=True, parents=True)
 
     # Write out configuration file.

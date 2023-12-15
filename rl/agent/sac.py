@@ -301,7 +301,6 @@ def run_sac(
     use_lap: bool = False,
     replay_buffer_size: int = 1_000_000,
     seed: int = 777,
-    benchmark_idx: int = 0,
     record_video: bool = False,
     show_progressbar: bool = True,
     **kwargs,
@@ -314,16 +313,9 @@ def run_sac(
     print(" " + pd.Series(params).to_string().replace("\n", "\n "))
     print()
 
-    if benchmark_idx > 0:
-        base_dir = (
-            SAVE_DIR / "VALID" / env_id / "SAC" / f"{rl_run_name}" / str(benchmark_idx)
-        )
-        show_progressbar = False
-        record_video = False
-    else:
-        timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
-        rl_run_name = f"{rl_run_name}-{timestamp}"
-        base_dir = SAVE_DIR / "SAC" / rl_run_name
+    timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
+    rl_run_name = f"{rl_run_name}-{timestamp}"
+    base_dir = SAVE_DIR / "SAC" / rl_run_name
 
     # Make directory for saving and logging.
     base_dir.mkdir(exist_ok=True, parents=True)

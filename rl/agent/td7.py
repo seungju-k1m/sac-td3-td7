@@ -321,7 +321,6 @@ def run_td7(
     without_policy_checkpoint: bool = False,
     without_lap: bool = False,
     replay_buffer_size: int = 1_000_000,
-    benchmark_idx: int = 0,
     record_video: bool = False,
     show_progressbar: bool = True,
     **kwargs,
@@ -332,21 +331,9 @@ def run_td7(
     print("-" * 5 + "[TD7]" + "-" * 5)
     print(" " + pd.Series(params).to_string().replace("\n", "\n "))
     print()
-    if benchmark_idx > 0:
-        base_dir = (
-            SAVE_DIR
-            / "VALID"
-            / env_id
-            / "TD7"
-            / f"TD7-{rl_run_name}"
-            / str(benchmark_idx)
-        )
-        show_progressbar = False
-        record_video = False
-    else:
-        timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
-        rl_run_name = f"{rl_run_name}-{timestamp}"
-        base_dir = SAVE_DIR / "TD7" / rl_run_name
+    timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
+    rl_run_name = f"{rl_run_name}-{timestamp}"
+    base_dir = SAVE_DIR / "TD7" / rl_run_name
 
     # Make directory for saving and logging.
     base_dir.mkdir(exist_ok=True, parents=True)

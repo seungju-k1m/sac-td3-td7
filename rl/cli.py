@@ -1,12 +1,9 @@
 """Command Line Interface."""
 from copy import deepcopy
-import os
 import click
 import pandas as pd
-import ray
 
 
-from rl import SEEDS
 from rl.agent import run_sac, run_td3, run_td7
 from rl.replayer import Replayer
 
@@ -25,8 +22,20 @@ from rl.utils.miscellaneous import convert_dict_as_param
     help="Read option defaults from the specified INI file",
     show_default=True,
 )
-@click.argument("env-id", type=click.STRING)
-@click.argument("rl-run-name", type=click.STRING)
+@click.option(
+    "--run-name",
+    default=None,
+    type=str,
+    help="Run experiment would be saved in save/<ALG_NAME>/<run_name>-<timestamp>",
+    show_default=True,
+)
+@click.option(
+    "--env-id",
+    default="Hopper-v4",
+    type=str,
+    help="Run experiment would be saved in save/<ALG_NAME>/<run_name>-<timestamp>",
+    show_default=True,
+)
 @click.option(
     "--tmp",
     type=float,
@@ -67,15 +76,6 @@ If tmp is negative, `auto_tmp_mode` works.",
     "--batch-size", type=click.INT, default=256, show_default=True, help="Batch size."
 )
 @click.option(
-    "--valid-benchmark",
-    type=click.BOOL,
-    default=False,
-    show_default=True,
-    help="Running multiple identical experiments in parallel \
-with only different seeds means.",
-    is_flag=True,
-)
-@click.option(
     "--record-video",
     type=click.BOOL,
     default=False,
@@ -84,40 +84,13 @@ with only different seeds means.",
     is_flag=True,
 )
 @click.option("--seed", type=click.INT, default=42, show_default=True, help="Seed.")
-def cli_run_sac(valid_benchmark: bool, **kwargs):
+def cli_run_sac(**kwargs):
     """
     Run SAC Algorithm.
 
     Examples :
-
-    # Train SAC Agent with Ant-v4 Env\n
-    >>> rl sac Ant-v4 ant@auto\n\n
-    # Train SAC Agent with fixed temperature\n
-    >>> rl sac Ant-v4 ant@tmp20 --tmp 0.2\n
-    # If you want to record video while training\n\n
-    >>> rl sac Ant-v4 ant@auto --record-video\n
-    # If you want to run several experiments
-    in parallel with only different seeds\n
-    >>> rl sac Ant-v4 ant@auto --valid-benchmark
     """
-    if valid_benchmark:
-        n_cpus = -1 if os.cpu_count() < 8 else 8
-        ray.init(num_cpus=n_cpus)
-        remote_fn_sac = ray.remote(run_sac)
-        if "seed" in kwargs.keys():
-            kwargs.pop("seed")
-        ray_objs = [
-            remote_fn_sac.remote(
-                seed=seed,
-                benchmark_idx=idx + 1,
-                show_progressbar=False,
-                **kwargs,
-            )
-            for idx, seed in enumerate(SEEDS)
-        ]
-        ray.get(ray_objs)
-    else:
-        run_sac(**kwargs)
+    run_sac(**kwargs)
 
 
 @click.command(name="td3")
@@ -131,11 +104,22 @@ def cli_run_sac(valid_benchmark: bool, **kwargs):
     help="Read option defaults from the specified INI file",
     show_default=True,
 )
-@click.argument("env-id", type=click.STRING)
-@click.argument("rl-run-name", type=click.STRING)
+@click.option(
+    "--run-name",
+    default=None,
+    type=str,
+    help="Run experiment would be saved in save/<ALG_NAME>/<run_name>-<timestamp>",
+    show_default=True,
+)
+@click.option(
+    "--env-id",
+    default="Hopper-v4",
+    type=str,
+    help="Run experiment would be saved in save/<ALG_NAME>/<run_name>-<timestamp>",
+    show_default=True,
+)
 @click.option("--action-fn", type=click.STRING, default="ReLU", show_default=True)
 @click.option("--discount-factor", type=click.FLOAT, default=0.99, show_default=True)
-# For Traiuning
 @click.option(
     "--n-iteration",
     type=click.INT,
@@ -163,15 +147,6 @@ def cli_run_sac(valid_benchmark: bool, **kwargs):
     is_flag=True,
 )
 @click.option(
-    "--valid-benchmark",
-    type=click.BOOL,
-    default=False,
-    show_default=True,
-    help="Running multiple identical experiments in parallel \
-with only different seeds means.",
-    is_flag=True,
-)
-@click.option(
     "--record-video",
     type=click.BOOL,
     default=False,
@@ -188,38 +163,13 @@ with only different seeds means.",
     is_flag=True,
 )
 @click.option("--seed", type=click.INT, default=777, show_default=True, help="Seed.")
-def cli_run_td3(valid_benchmark: bool, **kwargs):
+def cli_run_td3(**kwargs):
     """
     Run TD3 Algorithm.
 
     Examples :
-
-    # Train TD3 Agent with Ant-v4 Env\n
-    >>> rl td3 Ant-v4 td3\n\n
-    # If you want to record video while training\n\n
-    >>> rl td3 Ant-v4 ant@auto --record-video\n
-    # If you want to run several experiments
-    in parallel with only different seeds\n
-    >>> rl td3 Ant-v4 ant@auto --valid-benchmark
     """
-    if valid_benchmark:
-        n_cpus = -1 if os.cpu_count() < 8 else 8
-        ray.init(num_cpus=n_cpus)
-        remote_fn_td3 = ray.remote(run_td3)
-        if "seed" in kwargs.keys():
-            kwargs.pop("seed")
-        ray_objs = [
-            remote_fn_td3.remote(
-                seed=seed,
-                benchmark_idx=idx + 1,
-                show_progressbar=False,
-                **kwargs,
-            )
-            for idx, seed in enumerate(SEEDS)
-        ]
-        ray.get(ray_objs)
-    else:
-        run_td3(**kwargs)
+    run_td3(**kwargs)
 
 
 @click.command(name="td7")
@@ -233,8 +183,20 @@ def cli_run_td3(valid_benchmark: bool, **kwargs):
     help="Read option defaults from the specified INI file",
     show_default=True,
 )
-@click.argument("env-id", type=click.STRING)
-@click.argument("rl-run-name", type=click.STRING)
+@click.option(
+    "--run-name",
+    default=None,
+    type=str,
+    help="Run experiment would be saved in save/<ALG_NAME>/<run_name>-<timestamp>",
+    show_default=True,
+)
+@click.option(
+    "--env-id",
+    default="Hopper-v4",
+    type=str,
+    help="Run experiment would be saved in save/<ALG_NAME>/<run_name>-<timestamp>",
+    show_default=True,
+)
 @click.option("--discount-factor", type=click.FLOAT, default=0.99, show_default=True)
 # For Traiuning
 @click.option(
@@ -264,15 +226,6 @@ def cli_run_td3(valid_benchmark: bool, **kwargs):
     is_flag=True,
 )
 @click.option(
-    "--valid-benchmark",
-    type=click.BOOL,
-    default=False,
-    show_default=True,
-    help="Running multiple identical experiments in parallel \
-with only different seeds means.",
-    is_flag=True,
-)
-@click.option(
     "--record-video",
     type=click.BOOL,
     default=False,
@@ -294,32 +247,8 @@ def cli_run_td7(valid_benchmark: bool, **kwargs):
     Run TD7 Algorithm.
 
     Examples :
-
-    # Train TD7 Agent with Ant-v4 Env\n
-    >>> rl td7 Ant-v4 td3\n\n
-    # If you want to record video while training\n\n
-    >>> rl td7 Ant-v4 ant@auto --record-video\n
-    # If you want to run several experiments
-    in parallel with only different seeds\n
-    >>> rl td7 Ant-v4 ant@auto --valid-benchmark
     """
-    if valid_benchmark:
-        n_cpus = -1 if os.cpu_count() < 8 else 8
-        ray.init(num_cpus=n_cpus)
-        remote_fn_td3 = ray.remote(run_td7)
-        if "seed" in kwargs.keys():
-            kwargs.pop("seed")
-        ray_objs = [
-            remote_fn_td3.remote(
-                seed=seed,
-                benchmark_idx=idx + 1,
-                **kwargs,
-            )
-            for idx, seed in enumerate(SEEDS)
-        ]
-        ray.get(ray_objs)
-    else:
-        run_td7(**kwargs)
+    run_td7(**kwargs)
 
 
 @click.command(name="replay")
