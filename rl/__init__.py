@@ -1,4 +1,4 @@
-from .vars import SAVE_DIR, SEEDS
+from .vars import SAVE_DIR
 from . import utils
 from . import neural_network
 from . import replay_memory
@@ -11,7 +11,6 @@ from . import cli
 
 __all__ = [
     "SAVE_DIR",
-    "SEEDS",
     "utils",
     "agent",
     "replay_memory",
