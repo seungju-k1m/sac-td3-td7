@@ -20,7 +20,7 @@ from rl.utils.miscellaneous import (
     convert_dict_as_param,
     fix_seed,
     get_state_action_dims,
-    setup_logger,
+    get_action_bias_scale,
 )
 from rl.runner import run_rl, run_rl_w_ckpt
 
@@ -44,6 +44,7 @@ class TD7(Agent, Sampler):
     ) -> None:
         """Initialize."""
         assert env_id in gym.registry
+        self.action_bias, self.action_scale = get_action_bias_scale(env_id)
         # Make neural network.
         self.encoder, self.policy, self.q1, self.q2 = self.make_nn(env_id)
         self.target_policy = deepcopy(self.policy)
@@ -103,8 +104,8 @@ class TD7(Agent, Sampler):
         self.q1.load_state_dict(agent.q1.state_dict())
         self.q2.load_state_dict(agent.q2.state_dict())
         self.policy.load_state_dict(agent.policy.state_dict())
-        self.encoder.load_state_dict(agent.encoder.state_dict())
         self.fixed_encoder.load_state_dict(agent.fixed_encoder.state_dict())
+        self.encoder.load_state_dict(agent.encoder.state_dict())
         self.fixed_encoder_target.load_state_dict(
             agent.fixed_encoder_target.state_dict()
         )
@@ -139,6 +140,7 @@ class TD7(Agent, Sampler):
                 action += noise.to(self.device)
             action = action.cpu().detach().numpy()[0]
             action = np.clip(action, -1.0, 1.0)
+        action = action * self.action_scale + self.action_bias
         return action
 
     def _inference_action(self, state: STATE) -> ACTION:
@@ -150,9 +152,13 @@ class TD7(Agent, Sampler):
     @staticmethod
     def _lap_huber(td_error: torch.Tensor, min_priority: float = 1.0) -> torch.Tensor:
         """ "Caluclate Huber loss for LAP."""
-        return torch.where(
-            td_error < min_priority, 0.5 * td_error.pow(2), min_priority * td_error
-        ).mean()
+        return (
+            torch.where(
+                td_error < min_priority, 0.5 * td_error.pow(2), min_priority * td_error
+            )
+            .sum(1)
+            .mean()
+        )
 
     def _q_train_ops(
         self,
@@ -189,8 +195,8 @@ class TD7(Agent, Sampler):
                 next_state_action_embedding,
                 next_state_embedding,
             )
-
-            next_value = torch.min(next_q1, next_q2).clamp(
+            next_value = torch.cat([next_q1, next_q2], -1)
+            next_value = next_value.min(1, keepdim=True)[0].clamp(
                 self.value_target_min, self.value_target_max
             )
             q_target = reward + self.discount_factor * next_value * done
@@ -208,9 +214,11 @@ class TD7(Agent, Sampler):
         if self.use_lap:
             td_loss1 = (q1 - q_target).abs()
             td_loss2 = (q2 - q_target).abs()
-            q_loss = self._lap_huber(td_loss1 + td_loss2)
+            # Batch, 2
+            td_loss = torch.cat([td_loss1, td_loss2], 1)
+            q_loss = self._lap_huber(td_loss)
             # TODO: It is hard-coding
-            priority = torch.max(td_loss1, td_loss2).clamp(1.0).pow(0.4).view(-1)
+            priority = td_loss.max(1)[0].clamp(1.0).pow(0.4).view(-1)
             return q_loss, priority.cpu().detach()
         else:
             q1_loss = torch.mean((q_target - q1) ** 2.0) * 0.5
@@ -228,7 +236,7 @@ class TD7(Agent, Sampler):
         state_action_embedding = self.encoder.encode_state_action(
             state_embedding, action
         )
-        loss = ((state_action_embedding - next_state_embedding).pow(2.0)).mean()
+        loss = (state_action_embedding - next_state_embedding).pow(2.0).mean()
         return loss
 
     def _policy_train_ops(self, state: STATE, **kwargs) -> torch.Tensor:
@@ -242,15 +250,16 @@ class TD7(Agent, Sampler):
 
         q1 = self.q1.forward(state, action, state_action_embedding, state_embedding)
         q2 = self.q2.forward(state, action, state_action_embedding, state_embedding)
-        policy_loss = -(q1.mean() + q2.mean())
+        q_value = torch.cat([q1, q2], -1)
+        policy_loss = -q_value.mean()
         return policy_loss
 
     @torch.no_grad()
     def hard_update_target_fns(self) -> None:
         """Update target network."""
+        self.target_policy.load_state_dict(self.policy.state_dict())
         self.target_q1.load_state_dict(self.q1.state_dict())
         self.target_q2.load_state_dict(self.q2.state_dict())
-        self.target_policy.load_state_dict(self.policy.state_dict())
         self.fixed_encoder_target.load_state_dict(self.fixed_encoder.state_dict())
         self.fixed_encoder.load_state_dict(self.encoder.state_dict())
 
@@ -262,16 +271,15 @@ class TD7(Agent, Sampler):
         **kwargs,
     ) -> None:
         """Run train ops."""
+        self.n_runs += 1
         info = {}
         batch = {key: value.to(self.device) for key, value in batch.items()}
         # Update encoder.
         encoder_loss = self._encoder_train_ops(**batch)
-
         self.optim_encoder.zero_grad()
         encoder_loss.backward()
         self.optim_encoder.step()
         info["train/encoder"] = float(encoder_loss.cpu().detach().numpy())
-        self.zero_grad()
 
         # Update state value function.
         # Update Action-State value function.
@@ -280,20 +288,19 @@ class TD7(Agent, Sampler):
             q_value_loss, priority = q_value_loss
             assert isinstance(replay_buffer, LAPReplayMemory)
             replay_buffer.update_priority(priority)
+        self.optim_q_fns.zero_grad()
         q_value_loss.backward()
         self.optim_q_fns.step()
-        self.zero_grad()
         info["train/q_fn"] = float(q_value_loss.cpu().detach().numpy())
 
         # Update policy.
         info["train/policy"] = None
         if self.n_runs % self.policy_freq == 0:
             policy_loss = self._policy_train_ops(**batch)
+            self.optim_policy.zero_grad()
             policy_loss.backward()
-            info["train/policy"] = float(policy_loss.cpu().detach().numpy())
-
             self.optim_policy.step()
-            self.zero_grad()
+            info["train/policy"] = float(policy_loss.cpu().detach().numpy())
         if self.n_runs % self.target_update_rate == 0:
             # Update Target
             self.hard_update_target_fns()
@@ -301,8 +308,10 @@ class TD7(Agent, Sampler):
             self.value_target_min = self.value_min
             if self.use_lap:
                 replay_buffer.reset_max_priority()
-        self.n_runs += 1
         return info
+
+    def __repr__(self) -> str:
+        return "TD7"
 
 
 def run_td7(
@@ -342,9 +351,6 @@ def run_td7(
     # Make directory for saving and logging.
     base_dir.mkdir(exist_ok=True, parents=True)
 
-    # TODO: Replace logger by mlflow.
-    logger = setup_logger(str(base_dir / "training.log"))
-
     # Write out configuration file.
     with open(base_dir / "config.yaml", "w") as file_handler:
         yaml.dump(params, file_handler)
@@ -368,7 +374,7 @@ def run_td7(
             env,
             agent,
             replay_buffer,
-            logger,
+            base_dir,
             show_progressbar=show_progressbar,
             record_video=record_video,
             seed=seed,
@@ -379,7 +385,7 @@ def run_td7(
             env,
             agent,
             replay_buffer,
-            logger,
+            base_dir,
             seed=seed,
             record_video=record_video,
             show_progressbar=show_progressbar,

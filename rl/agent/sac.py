@@ -17,9 +17,9 @@ from rl.replay_memory.simple import SimpleReplayMemory
 from rl.sampler import Sampler
 from rl.neural_network import calculate_grad_norm, clip_grad_norm, MLPPolicy, MLPQ
 from rl.utils.annotation import ACTION, BATCH, DONE, EPS, STATE, REWARD
-from rl.utils import convert_dict_as_param, setup_logger, get_state_action_dims
+from rl.utils import convert_dict_as_param, get_state_action_dims
 from rl.runner import run_rl
-from rl.utils.miscellaneous import fix_seed
+from rl.utils.miscellaneous import fix_seed, get_action_bias_scale
 
 
 class SAC(Agent, Sampler):
@@ -45,6 +45,7 @@ class SAC(Agent, Sampler):
         assert env_id in gym.registry
         # Make policy and q functions.
         state_dim, action_dim = get_state_action_dims(env_id)
+        self.action_bias, self.action_scale = get_action_bias_scale(env_id)
         self.policy = MLPPolicy(state_dim, action_dim * 2, hidden_sizes, action_fn)
         self.q1 = MLPQ(state_dim, action_dim, hidden_sizes, action_fn)
         self.q2 = MLPQ(state_dim, action_dim, hidden_sizes, action_fn)
@@ -137,6 +138,7 @@ class SAC(Agent, Sampler):
 
         # Convert it as numpy for interfacing `gym.Env``.
         action = action.cpu().detach().numpy()[0]
+        action = action * self.action_scale + self.action_bias
         return action
 
     def _inference(self, state: STATE) -> torch.distributions.Normal:
@@ -288,6 +290,10 @@ class SAC(Agent, Sampler):
         self.n_runs += 1
         return info
 
+    def __repr__(self) -> str:
+        """Return Algorithm Name."""
+        return "SAC"
+
 
 def run_sac(
     rl_run_name: str,
@@ -322,9 +328,6 @@ def run_sac(
     # Make directory for saving and logging.
     base_dir.mkdir(exist_ok=True, parents=True)
 
-    # TODO: Replace logger by WandB.
-    logger = setup_logger(str(base_dir / "training.log"))
-
     # Write out configuration file.
     with open(base_dir / "config.yaml", "w") as file_handler:
         yaml.dump(params, file_handler)
@@ -346,7 +349,7 @@ def run_sac(
         env,
         agent,
         replay_buffer,
-        logger,
+        base_dir,
         show_progressbar=show_progressbar,
         record_video=record_video,
         **kwargs,

@@ -6,7 +6,7 @@ import torch
 
 from rl.replay_memory.base import BaseReplayMemory
 from rl.utils.annotation import BATCH
-from rl.utils.miscellaneous import get_state_action_dims
+from rl.utils.miscellaneous import get_action_bias_scale, get_state_action_dims
 
 
 class SimpleReplayMemory(BaseReplayMemory):
@@ -19,6 +19,7 @@ class SimpleReplayMemory(BaseReplayMemory):
         self.size = 0
         self.ind: list[int]
         state_dim, action_dim = get_state_action_dims(env_id)
+        self.action_bias, self.action_scale = get_action_bias_scale(env_id)
         self.state = np.zeros((replay_buffer_size, state_dim))
         self.action = np.zeros((replay_buffer_size, action_dim))
         self.next_state = np.zeros((replay_buffer_size, state_dim))
@@ -29,6 +30,7 @@ class SimpleReplayMemory(BaseReplayMemory):
         """Append transition."""
         assert len(transition) == 5
         obs, action, reward, next_obs, float_done = transition
+        action = action / self.action_scale - self.action_bias
         self.state[self.ptr] = obs
         self.action[self.ptr] = action
         self.reward[self.ptr] = reward

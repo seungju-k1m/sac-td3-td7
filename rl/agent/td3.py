@@ -20,8 +20,8 @@ from rl.utils.annotation import ACTION, BATCH, DONE, STATE, REWARD
 from rl.utils.miscellaneous import (
     convert_dict_as_param,
     fix_seed,
+    get_action_bias_scale,
     get_state_action_dims,
-    setup_logger,
 )
 from rl.runner import run_rl
 
@@ -49,6 +49,7 @@ class TD3(Agent, Sampler):
         assert env_id in gym.registry
         # Make neural network.
         state_dim, action_dim = get_state_action_dims(env_id)
+        self.action_bias, self.action_scale = get_action_bias_scale(env_id)
         self.policy = MLPPolicy(state_dim, action_dim, hidden_sizes, action_fn)
         self.q1 = MLPQ(state_dim, action_dim, hidden_sizes, action_fn)
         self.q2 = MLPQ(state_dim, action_dim, hidden_sizes, action_fn)
@@ -114,6 +115,7 @@ class TD3(Agent, Sampler):
                 action += noise.to(self.device)
             action = action.cpu().detach().numpy()[0]
             action = np.clip(action, -1.0, 1.0)
+        action = action * self.action_scale + self.action_bias
         return action
 
     def _inference_action(self, state: STATE) -> ACTION:
@@ -227,6 +229,9 @@ class TD3(Agent, Sampler):
         self.n_runs += 1
         return info
 
+    def __repr__(self) -> str:
+        return "TD3"
+
 
 def run_td3(
     rl_run_name: str,
@@ -262,9 +267,6 @@ def run_td3(
         base_dir = SAVE_DIR / "TD3" / rl_run_name
     base_dir.mkdir(exist_ok=True, parents=True)
 
-    # TODO: Replace logger by mlflow.
-    logger = setup_logger(str(base_dir / "training.log"))
-
     # Write out configuration file.
     with open(base_dir / "config.json", "w") as file_handler:
         json.dump(params, file_handler, indent=4)
@@ -284,7 +286,7 @@ def run_td3(
         env,
         agent,
         replay_buffer,
-        logger,
+        base_dir,
         show_progressbar=show_progressbar,
         record_video=record_video,
         **kwargs,
