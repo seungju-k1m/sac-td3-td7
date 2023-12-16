@@ -85,7 +85,7 @@ def log_train_infos(
 
 
 def run_train_ops(
-    n_ops: int, rollout: Rollout, agent: Agent, batch_size: int
+    rollout: Rollout, agent: Agent, batch_size: int, n_ops: int = 1
 ) -> list[dict]:
     """Run Train Ops."""
     train_infos = list()
@@ -104,9 +104,7 @@ def run_rl(
     n_initial_exploration_steps: int = 25_000,
     n_iteration: int = 10_000_000,
     batch_size: int = 256,
-    n_grad_step: int = 1,
     eval_period: int = 10_000,
-    show_progressbar: bool = True,
     record_video: bool = True,
     seed: int = 42,
     **kwargs,
@@ -122,7 +120,7 @@ def run_rl(
     eval_env = gym.make(env.spec, render_mode=render_mode)
     eval_env.reset(seed=seed + 100)
 
-    env = RecordEpisodeStatistics(env, 2)
+    env = RecordEpisodeStatistics(env, 1)
     eval_env = RecordEpisodeStatistics(eval_env, 16)
 
     if record_video:
@@ -147,11 +145,10 @@ def run_rl(
     best_return = -1e8
 
     # Progress bar
-    if show_progressbar:
-        progress_bar = tqdm(
-            range(0, n_iteration),
-        )
-        progress_bar.set_description("Iteration")
+    progress_bar = tqdm(
+        range(0, n_iteration),
+    )
+    progress_bar.set_description("Iteration")
     # Run RL
     test_info = test_agent(eval_env, agent, True)
 
@@ -170,11 +167,10 @@ def run_rl(
                     train_flag = True
                 else:
                     continue
-            train_infos += run_train_ops(n_grad_step, rollout, agent, batch_size)
-            iteration += n_grad_step
-            if show_progressbar:
-                progress_bar.update(n_grad_step)
-                progress_bar.set_postfix(test_info)
+            train_infos += run_train_ops(rollout, agent, batch_size)
+            iteration += 1
+            progress_bar.update(1)
+            progress_bar.set_postfix(test_info)
             if timestep % eval_period == 0 and train_flag:
                 test_info = test_agent(eval_env, agent, deterministic=True)
                 if test_info["perf/mean"] > best_return:

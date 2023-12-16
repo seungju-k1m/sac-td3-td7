@@ -138,7 +138,9 @@ def run_rl_w_ckpt(
 
         # Train ops
         if train_flag:
-            train_infos = run_train_ops(sum_episode_length, rollout, agent, batch_size)
+            train_infos = run_train_ops(
+                rollout, agent, batch_size, n_ops=sum_episode_length
+            )
             # best_min_return *= reset_weight
             rollout_info = {
                 "rollout/return": episode_return,

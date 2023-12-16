@@ -11,11 +11,11 @@ import gymnasium as gym
 from torch import nn
 
 from rl import SAVE_DIR
-from rl.agent.abc import Agent
-from rl.replay_memory.lap import LAPReplayMemory
-from rl.replay_memory.simple import SimpleReplayMemory
+from rl.agent import Agent
+from rl.replay_memory import SimpleReplayMemory, LAPReplayMemory
 from rl.sampler import Sampler
-from rl.neural_network import calculate_grad_norm, MLPPolicy, MLPQ
+from rl.runner import run_rl
+from rl.neural_network import MLPPolicy, MLPQ
 from rl.utils.annotation import ACTION, BATCH, DONE, STATE, REWARD
 from rl.utils.miscellaneous import (
     convert_dict_as_param,
@@ -23,7 +23,6 @@ from rl.utils.miscellaneous import (
     get_action_bias_scale,
     get_state_action_dims,
 )
-from rl.runner import run_rl
 
 
 class TD3(Agent, Sampler):
@@ -207,8 +206,6 @@ class TD3(Agent, Sampler):
             assert isinstance(replay_buffer, LAPReplayMemory)
             replay_buffer.update_priority(priority)
         q_value_loss.backward()
-        info["norm/q1_value"] = calculate_grad_norm(self.q1)
-        info["norm/q2_value"] = calculate_grad_norm(self.q2)
         self.optim_q_fns.step()
         self.zero_grad()
         info["train/q_fn"] = float(q_value_loss.cpu().detach().numpy())
@@ -220,7 +217,6 @@ class TD3(Agent, Sampler):
             policy_loss = self._policy_train_ops(**batch)
             policy_loss.backward()
             info["train/policy"] = float(policy_loss.cpu().detach().numpy())
-            info["norm/policy"] = calculate_grad_norm(self.policy)
 
             self.optim_policy.step()
             self.zero_grad()
@@ -234,7 +230,7 @@ class TD3(Agent, Sampler):
 
 
 def run_td3(
-    rl_run_name: str,
+    run_name: str,
     env_id: str,
     seed: int = 777,
     use_lap: bool = False,
@@ -250,8 +246,8 @@ def run_td3(
     print(" " + pd.Series(params).to_string().replace("\n", "\n "))
     print()
     timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
-    rl_run_name = f"{rl_run_name}-{timestamp}"
-    base_dir = SAVE_DIR / "TD3" / rl_run_name
+    run_name = f"{run_name}-{timestamp}"
+    base_dir = SAVE_DIR / "TD3" / run_name
     base_dir.mkdir(exist_ok=True, parents=True)
 
     # Write out configuration file.

@@ -315,7 +315,7 @@ class TD7(Agent, Sampler):
 
 
 def run_td7(
-    rl_run_name: str,
+    run_name: str,
     env_id: str,
     seed: int = 777,
     without_policy_checkpoint: bool = False,
@@ -332,8 +332,8 @@ def run_td7(
     print(" " + pd.Series(params).to_string().replace("\n", "\n "))
     print()
     timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
-    rl_run_name = f"{rl_run_name}-{timestamp}"
-    base_dir = SAVE_DIR / "TD7" / rl_run_name
+    run_name = f"{run_name}-{timestamp}"
+    base_dir = SAVE_DIR / "TD7" / run_name
 
     # Make directory for saving and logging.
     base_dir.mkdir(exist_ok=True, parents=True)

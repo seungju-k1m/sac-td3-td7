@@ -4,21 +4,19 @@ import pandas as pd
 from copy import deepcopy
 from datetime import datetime
 
+import yaml
 import torch
 import gymnasium as gym
 from torch import nn
-import yaml
 
 from rl import SAVE_DIR
-from rl.agent.abc import Agent
-from rl.replay_memory.base import REPLAYMEMORY
-from rl.replay_memory.lap import LAPReplayMemory
-from rl.replay_memory.simple import SimpleReplayMemory
+from rl.agent import Agent
+from rl.replay_memory import SimpleReplayMemory, LAPReplayMemory, REPLAYMEMORY
 from rl.sampler import Sampler
-from rl.neural_network import calculate_grad_norm, clip_grad_norm, MLPPolicy, MLPQ
-from rl.utils.annotation import ACTION, BATCH, DONE, EPS, STATE, REWARD
-from rl.utils import convert_dict_as_param, get_state_action_dims
+from rl.neural_network import MLPPolicy, MLPQ
 from rl.runner import run_rl
+from rl.utils import convert_dict_as_param, get_state_action_dims
+from rl.utils.annotation import ACTION, BATCH, DONE, EPS, STATE, REWARD
 from rl.utils.miscellaneous import fix_seed, get_action_bias_scale
 
 
@@ -253,10 +251,6 @@ class SAC(Agent, Sampler):
             replay_buffer.update_priority(priority)
 
         q_value_loss.backward()
-        info["norm/q1_value"] = calculate_grad_norm(self.q1)
-        info["norm/q2_value"] = calculate_grad_norm(self.q2)
-        clip_grad_norm(self.q1, self.max_grad_norm)
-        clip_grad_norm(self.q2, self.max_grad_norm)
         self.optim_q_fns.step()
         self.zero_grad()
         info["train/q_fn"] = float(q_value_loss.cpu().detach().numpy())
@@ -267,8 +261,6 @@ class SAC(Agent, Sampler):
         if self.auto_tmp_mode:
             obj += tmp_loss
         obj.backward()
-        info["norm/policy"] = calculate_grad_norm(self.policy)
-        clip_grad_norm(self.policy, self.max_grad_norm)
 
         # (Optional) Train temperatgure.
         if self.auto_tmp_mode:
@@ -296,13 +288,12 @@ class SAC(Agent, Sampler):
 
 
 def run_sac(
-    rl_run_name: str,
+    run_name: str,
     env_id: str,
     use_lap: bool = False,
     replay_buffer_size: int = 1_000_000,
-    seed: int = 777,
     record_video: bool = False,
-    show_progressbar: bool = True,
+    seed: int = 777,
     **kwargs,
 ) -> None:
     """Run SAC Algorithm."""
@@ -314,8 +305,8 @@ def run_sac(
     print()
 
     timestamp = datetime.strftime(datetime.now(), "%Y-%m-%d-%H:%M:%S")
-    rl_run_name = f"{rl_run_name}-{timestamp}"
-    base_dir = SAVE_DIR / "SAC" / rl_run_name
+    run_name = f"{run_name}-{timestamp}"
+    base_dir = SAVE_DIR / "SAC" / run_name
 
     # Make directory for saving and logging.
     base_dir.mkdir(exist_ok=True, parents=True)
@@ -342,7 +333,6 @@ def run_sac(
         agent,
         replay_buffer,
         base_dir,
-        show_progressbar=show_progressbar,
         record_video=record_video,
         **kwargs,
     )
