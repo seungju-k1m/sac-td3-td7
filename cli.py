@@ -2,6 +2,7 @@ import click
 from click_repl import register_repl
 
 from rl.cli import cli_run_sac, cli_run_td3, cli_run_td7, cli_replay_agent
+from rl.docs import RL_HELP
 
 
 @click.group()
@@ -9,7 +10,7 @@ def main():
     """CLI."""
 
 
-@click.group()
+@click.group(help=RL_HELP)
 def rl() -> None:
     """Off-Policy RL: SAC, TD3 and TD7."""
 
