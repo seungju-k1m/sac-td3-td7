@@ -1,0 +1,8 @@
+discount_factor: 0.99
+n_iteration: 500000
+replay_buffer_size: 1000000
+n_initial_exploration_steps: 25000
+eval_period: 5000
+batch_size: 256
+record_video: false
+seed: 42
