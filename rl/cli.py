@@ -4,38 +4,14 @@ import click
 import pandas as pd
 
 
+from rl.docs import SAC_HELP, TD3_HELP, TD7_HELP
 from rl.agent import run_sac, run_td3, run_td7
 from rl.replayer import Replayer
 
-from rl.utils.cli_utils import configure
+from rl.utils.cli_utils import common_params_for_rl_alg
 from rl.utils.miscellaneous import convert_dict_as_param
 
-
-@click.command(name="sac")
-@click.option(
-    "-c",
-    "--config",
-    type=click.Path(),
-    callback=configure,
-    is_eager=True,
-    expose_value=False,
-    help="Read option defaults from the specified INI file",
-    show_default=True,
-)
-@click.option(
-    "--run-name",
-    default=None,
-    type=str,
-    help="Run experiment would be saved in save/<ALG_NAME>/<run_name>-<timestamp>",
-    show_default=True,
-)
-@click.option(
-    "--env-id",
-    default="Hopper-v4",
-    type=str,
-    help="Run experiment would be saved in save/<ALG_NAME>/<run_name>-<timestamp>",
-    show_default=True,
-)
+@click.command(name="sac", help=SAC_HELP)
 @click.option(
     "--tmp",
     type=float,
@@ -51,109 +27,14 @@ If tmp is negative, `auto_tmp_mode` works.",
     show_default=True,
     help="Activation function.",
 )
-@click.option(
-    "--discount-factor",
-    type=click.FLOAT,
-    default=0.99,
-    show_default=True,
-    help="Discount Factor.",
-)
-@click.option(
-    "--n-iteration",
-    type=click.INT,
-    default=5_000_000,
-    show_default=True,
-    help="# of train iteration.",
-)
-@click.option(
-    "--n-initial-exploration-steps",
-    type=click.INT,
-    default=25_000,
-    show_default=True,
-    help="# of transition using randon policy.",
-)
-@click.option(
-    "--batch-size", type=click.INT, default=256, show_default=True, help="Batch size."
-)
-@click.option(
-    "--record-video",
-    type=click.BOOL,
-    default=False,
-    show_default=True,
-    help="Record Video.",
-    is_flag=True,
-)
-@click.option("--seed", type=click.INT, default=42, show_default=True, help="Seed.")
+@common_params_for_rl_alg
 def cli_run_sac(**kwargs):
-    """
-    Run SAC Algorithm.
-
-    Examples :
-    """
+    """Run SAC Algorithm."""
     run_sac(**kwargs)
 
 
-@click.command(name="td3")
-@click.option(
-    "-c",
-    "--config",
-    type=click.Path(),
-    callback=configure,
-    is_eager=True,
-    expose_value=False,
-    help="Read option defaults from the specified INI file",
-    show_default=True,
-)
-@click.option(
-    "--run-name",
-    default=None,
-    type=str,
-    help="Run experiment would be saved in save/<ALG_NAME>/<run_name>-<timestamp>",
-    show_default=True,
-)
-@click.option(
-    "--env-id",
-    default="Hopper-v4",
-    type=str,
-    help="Run experiment would be saved in save/<ALG_NAME>/<run_name>-<timestamp>",
-    show_default=True,
-)
+@click.command(name="td3", help=TD3_HELP)
 @click.option("--action-fn", type=click.STRING, default="ReLU", show_default=True)
-@click.option("--discount-factor", type=click.FLOAT, default=0.99, show_default=True)
-@click.option(
-    "--n-iteration",
-    type=click.INT,
-    default=10_000_000,
-    show_default=True,
-    help="# of iteration.",
-)
-@click.option(
-    "--batch-size", type=click.INT, default=256, show_default=True, help="Batch size."
-)
-@click.option(
-    "--use-checkpoint",
-    type=click.BOOL,
-    default=False,
-    show_default=True,
-    help="Use Checkpoint",
-    is_flag=True,
-)
-@click.option(
-    "--use-lap",
-    type=click.BOOL,
-    default=False,
-    show_default=True,
-    help="Use LAP.",
-    is_flag=True,
-)
-@click.option(
-    "--record-video",
-    type=click.BOOL,
-    default=False,
-    show_default=True,
-    help="Record Video.",
-    is_flag=True,
-)
 @click.option(
     "--use-gpu",
     type=click.BOOL,
@@ -162,53 +43,13 @@ def cli_run_sac(**kwargs):
     help="Use GPU.",
     is_flag=True,
 )
-@click.option("--seed", type=click.INT, default=777, show_default=True, help="Seed.")
+@common_params_for_rl_alg
 def cli_run_td3(**kwargs):
-    """
-    Run TD3 Algorithm.
-
-    Examples :
-    """
+    """Run TD3 Algorithm."""
     run_td3(**kwargs)
 
 
-@click.command(name="td7")
-@click.option(
-    "-c",
-    "--config",
-    type=click.Path(),
-    callback=configure,
-    is_eager=True,
-    expose_value=False,
-    help="Read option defaults from the specified INI file",
-    show_default=True,
-)
-@click.option(
-    "--run-name",
-    default=None,
-    type=str,
-    help="Run experiment would be saved in save/<ALG_NAME>/<run_name>-<timestamp>",
-    show_default=True,
-)
-@click.option(
-    "--env-id",
-    default="Hopper-v4",
-    type=str,
-    help="Run experiment would be saved in save/<ALG_NAME>/<run_name>-<timestamp>",
-    show_default=True,
-)
-@click.option("--discount-factor", type=click.FLOAT, default=0.99, show_default=True)
-# For Traiuning
-@click.option(
-    "--n-iteration",
-    type=click.INT,
-    default=10_000_000,
-    show_default=True,
-    help="# of iteration.",
-)
-@click.option(
-    "--batch-size", type=click.INT, default=256, show_default=True, help="Batch size."
-)
+@click.command(name="td7", help=TD7_HELP)
 @click.option(
     "--without-policy-checkpoint",
     type=click.BOOL,
@@ -226,14 +67,6 @@ def cli_run_td3(**kwargs):
     is_flag=True,
 )
 @click.option(
-    "--record-video",
-    type=click.BOOL,
-    default=False,
-    show_default=True,
-    help="Record Video.",
-    is_flag=True,
-)
-@click.option(
     "--use-gpu",
     type=click.BOOL,
     default=False,
@@ -241,13 +74,9 @@ def cli_run_td3(**kwargs):
     help="Use GPU.",
     is_flag=True,
 )
-@click.option("--seed", type=click.INT, default=777, show_default=True, help="Seed.")
-def cli_run_td7(valid_benchmark: bool, **kwargs):
-    """
-    Run TD7 Algorithm.
-
-    Examples :
-    """
+@common_params_for_rl_alg
+def cli_run_td7(**kwargs):
+    """Run TD7 Algorithm."""
     run_td7(**kwargs)
 
 
@@ -287,8 +116,7 @@ def cli_run_td7(valid_benchmark: bool, **kwargs):
 are saved in root_dir/replayer",
 )
 def cli_replay_agent(n_episodes: int, stochastic: bool, **kwargs) -> None:
-    """
-    Replay Trained Agent.
+    """Replay Trained Agent.
 
     Examples:
 
