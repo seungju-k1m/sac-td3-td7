@@ -3,10 +3,10 @@ gymnasium==0.29.1
 numpy==1.25.1
 click==8.1.6
 cython==0.29.36
-ray==2.6.1
 pandas==2.1.1
 click-repl==0.3.0
 tqdm==4.66.1
 mujoco==2.3.0
 imageio==2.31.6
 moviepy==1.0.3
+pyyaml==6.0.1
