@@ -176,10 +176,8 @@ def run_rl(
                 if test_info["perf/mean"] > best_return:
                     best_return = test_info["perf/mean"]
                     agent.save(base_dir / "best.pkl")
-                eval_logger.info(
-                    str(int(timestep))
-                    + ",".join([f"{value:.3f}" for value in test_info.values()])
-                )
+                stats = ",".join([f"{value:.3f}" for value in test_info.values()])
+                eval_logger.info(f"{int(timestep)},{stats}")
         episode_return: float = rollout.env.return_queue[-1][0]
         episode_length: float = rollout.env.length_queue[-1][0]
         if len(train_infos) > 0:
