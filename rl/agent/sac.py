@@ -1,5 +1,6 @@
 """Soft Actor Critic."""
 
+from typing import Callable
 import pandas as pd
 from copy import deepcopy
 from datetime import datetime
@@ -11,13 +12,14 @@ from torch import nn
 
 from rl import SAVE_DIR
 from rl.agent import Agent
+from rl.nn.abc import ACTOR, CRITIC
 from rl.replay_memory import SimpleReplayMemory, LAPReplayMemory, REPLAYMEMORY
 from rl.sampler import Sampler
-from rl.neural_network import MLPPolicy, MLPQ
 from rl.runner import run_rl
 from rl.utils import convert_dict_as_param, get_state_action_dims
 from rl.utils.annotation import ACTION, BATCH, DONE, EPS, STATE, REWARD
 from rl.utils.miscellaneous import fix_seed, get_action_bias_scale
+from rl.nn import MLPActor, MLPCritic, annotate_make_nn
 
 
 class SAC(Agent, Sampler):
@@ -27,8 +29,6 @@ class SAC(Agent, Sampler):
         self,
         env_id: str,
         discount_factor: float = 0.99,
-        hidden_sizes: list[int] = [256, 256],
-        action_fn: str | nn.Module = "ReLU",
         policy_lr: float = 3e-4,
         critic_lr: float = 3e-4,
         min_log_std: float = -20.0,
@@ -37,25 +37,28 @@ class SAC(Agent, Sampler):
         tmp: float = -1.0,
         use_lap: bool = False,
         max_grad_norm: float = float("inf"),
-        **kwargs,
+        make_nn: Callable | None = None,
+        **make_nn_kwargs,
     ) -> None:
         """Initialize."""
-        assert env_id in gym.registry
         # Make policy and q functions.
         state_dim, action_dim = get_state_action_dims(env_id)
-        self.action_bias, self.action_scale = get_action_bias_scale(env_id)
-        self.policy = MLPPolicy(state_dim, action_dim * 2, hidden_sizes, action_fn)
-        self.q1 = MLPQ(state_dim, action_dim, hidden_sizes, action_fn)
-        self.q2 = MLPQ(state_dim, action_dim, hidden_sizes, action_fn)
+        if make_nn is None:
+            self.policy, self.q1, self.q2 = self.make_nn(state_dim, action_dim)
+        else:
+            make_nn_kwargs["state_dim"] = state_dim
+            make_nn_kwargs["action_dim"] = action_dim
+            self.policy, self.q1, self.q2 = annotate_make_nn(make_nn)(**make_nn_kwargs)
+        # Copy target q fns.
+        self.target_q1, self.target_q2 = deepcopy(self.q1), deepcopy(self.q2)
+
+        # Set trainable temperature variable.
         self.auto_tmp_mode = True if tmp < 0.0 else False
         self.tmp = (
             nn.Parameter(torch.zeros(1).float(), requires_grad=True)
             if tmp < 0.0
             else tmp
         )
-
-        # Copy target q fns.
-        self.target_q1, self.target_q2 = deepcopy(self.q1), deepcopy(self.q2)
 
         # Prepare optimizers corresponding to policy, qfns and temperature.
         self.optim_policy, self.optim_q_fns, self.optim_tmp = self.make_optimizers(
@@ -72,6 +75,15 @@ class SAC(Agent, Sampler):
         self.n_runs = 0
         self.use_lap = use_lap
         self.max_grad_norm = max_grad_norm
+        self.action_bias, self.action_scale = get_action_bias_scale(env_id)
+
+    @staticmethod
+    def make_nn(state_dim: int, action_dim: int) -> tuple[ACTOR, CRITIC, CRITIC]:
+        """Make neural networks."""
+        policy = MLPActor(state_dim, action_dim * 2)
+        critic01 = MLPCritic(state_dim, action_dim)
+        critic02 = MLPCritic(state_dim, action_dim)
+        return policy, critic01, critic02
 
     def to(self, device: torch.device) -> None:
         """Attatch device."""
@@ -141,7 +153,7 @@ class SAC(Agent, Sampler):
 
     def _inference(self, state: STATE) -> torch.distributions.Normal:
         """Inference policy distribution."""
-        mean, log_std = self.policy.forward(state).chunk(2, -1)
+        mean, log_std = self.policy.inference_mean_logvar(state)
         log_std = torch.clamp(log_std, self.min_log_std, self.max_log_std)
         distribution = torch.distributions.Normal(mean, log_std.exp())
         return distribution
@@ -171,8 +183,8 @@ class SAC(Agent, Sampler):
         with torch.no_grad():
             next_state_dist = self._inference(next_state)
             next_action, next_log_pi = self._rsample(next_state_dist)
-            next_target_q1 = self.target_q1.forward(next_state, next_action)
-            next_target_q2 = self.target_q2.forward(next_state, next_action)
+            next_target_q1 = self.target_q1.estimate_q_value(next_state, next_action)
+            next_target_q2 = self.target_q2.estimate_q_value(next_state, next_action)
             next_target_q = torch.min(next_target_q1, next_target_q2)
             tmp = self.tmp.exp() if self.auto_tmp_mode else self.tmp
             q_target = (
@@ -180,8 +192,8 @@ class SAC(Agent, Sampler):
                 + self.discount_factor * (next_target_q - tmp * next_log_pi) * done
             )
         # calculate q value
-        q1 = self.q1.forward(state, action)
-        q2 = self.q2.forward(state, action)
+        q1 = self.q1.estimate_q_value(state, action)
+        q2 = self.q2.estimate_q_value(state, action)
 
         # If LAP Replayer is used, additionally return priority.
         if self.use_lap:
@@ -210,8 +222,8 @@ class SAC(Agent, Sampler):
         action, log_pi = self._rsample(distribution)
 
         # Calculate policy objective.
-        q1 = self.q1.forward(state, action)
-        q2 = self.q2.forward(state, action)
+        q1 = self.q1.estimate_q_value(state, action)
+        q2 = self.q2.estimate_q_value(state, action)
         q_value = torch.min(q1, q2)
         tmp = self.tmp.exp().detach() if self.auto_tmp_mode else self.tmp
         policy_obj = torch.mean(-q_value + log_pi * tmp)

@@ -1,6 +1,7 @@
 """Soft Actor Critic."""
 
 import json
+from typing import Callable
 import numpy as np
 import pandas as pd
 from copy import deepcopy
@@ -8,14 +9,15 @@ from datetime import datetime
 
 import torch
 import gymnasium as gym
-from torch import nn
 
 from rl import SAVE_DIR
 from rl.agent import Agent
+from rl.nn.abc import ACTOR, CRITIC
+from rl.nn.utils import annotate_make_nn
 from rl.replay_memory import SimpleReplayMemory, LAPReplayMemory
 from rl.sampler import Sampler
 from rl.runner import run_rl
-from rl.neural_network import MLPPolicy, MLPQ
+from rl.nn import MLPActor, MLPCritic
 from rl.utils.annotation import ACTION, BATCH, DONE, STATE, REWARD
 from rl.utils.miscellaneous import (
     convert_dict_as_param,
@@ -32,8 +34,6 @@ class TD3(Agent, Sampler):
         self,
         env_id: str,
         discount_factor: float = 0.99,
-        hidden_sizes: list[int] = [256, 256],
-        action_fn: str | nn.Module = "ReLU",
         policy_lr: float = 3e-4,
         critic_lr: float = 3e-4,
         exploration_noise: float = 0.1,
@@ -42,20 +42,23 @@ class TD3(Agent, Sampler):
         policy_freq: int = 2,
         tau: float = 0.005,
         use_lap: bool = False,
-        **kwargs,
+        make_nn: Callable | None = None,
+        **make_nn_kwargs,
     ) -> None:
         """Initialize."""
-        assert env_id in gym.registry
         # Make neural network.
         state_dim, action_dim = get_state_action_dims(env_id)
-        self.action_bias, self.action_scale = get_action_bias_scale(env_id)
-        self.policy = MLPPolicy(state_dim, action_dim, hidden_sizes, action_fn)
-        self.q1 = MLPQ(state_dim, action_dim, hidden_sizes, action_fn)
-        self.q2 = MLPQ(state_dim, action_dim, hidden_sizes, action_fn)
+        if make_nn is None:
+            self.policy, self.q1, self.q2 = self.make_nn(state_dim, action_dim)
+        else:
+            make_nn_kwargs["state_dim"] = state_dim
+            make_nn_kwargs["action_dim"] = action_dim
+            self.policy, self.q1, self.q2 = annotate_make_nn(make_nn)(**make_nn_kwargs)
         self.target_policy = deepcopy(self.policy)
         self.target_q1, self.target_q2 = deepcopy(self.q1), deepcopy(self.q2)
 
-        # Save cconiguration.
+        # Set configuration.
+        self.action_bias, self.action_scale = get_action_bias_scale(env_id)
         self.discount_factor = discount_factor
         self.target_policy_noise = target_policy_noise
         self.exploration_noise = exploration_noise
@@ -69,6 +72,13 @@ class TD3(Agent, Sampler):
 
         # Make optimizer.
         self.make_optimizers(policy_lr, critic_lr)
+
+    def make_nn(self, state_dim: int, action_dim: int) -> tuple[ACTOR, CRITIC, CRITIC]:
+        """Make neural networks."""
+        policy = MLPActor(state_dim, action_dim)
+        q1 = MLPCritic(state_dim, action_dim)
+        q2 = MLPCritic(state_dim, action_dim)
+        return policy, q1, q2
 
     def to(self, device: torch.device) -> None:
         """Attach device."""
@@ -119,7 +129,7 @@ class TD3(Agent, Sampler):
 
     def _inference_action(self, state: STATE) -> ACTION:
         """Only forward with policy."""
-        mean = self.policy.forward(state)
+        mean = self.policy.inference_mean(state)
         action = torch.tanh(mean)
         return action
 
@@ -143,16 +153,18 @@ class TD3(Agent, Sampler):
             noise = (torch.randn_like(action) * self.target_policy_noise).clamp(
                 -self.noise_clip, self.noise_clip
             )
-            next_action = (torch.tanh(self.target_policy(next_state)) + noise).clamp(
-                -1.0, 1.0
-            )
+            next_action = (
+                torch.tanh(self.target_policy.inference_mean(next_state)) + noise
+            ).clamp(-1.0, 1.0)
             next_value = torch.min(
-                self.target_q1.forward(next_state, next_action),
-                self.target_q2.forward(next_state, next_action),
+                self.target_q1.estimate_q_value(next_state, next_action),
+                self.target_q2.estimate_q_value(next_state, next_action),
             )
             q_target = reward + self.discount_factor * next_value * done
         # calculate q value
-        q1, q2 = self.q1.forward(state, action), self.q2.forward(state, action)
+        q1, q2 = self.q1.estimate_q_value(state, action), self.q2.estimate_q_value(
+            state, action
+        )
         if self.use_lap:
             td_loss1 = (q1 - q_target).abs()
             td_loss2 = (q2 - q_target).abs()
@@ -172,7 +184,9 @@ class TD3(Agent, Sampler):
         """Policy ops."""
         # Calculate policy loss.
         action = self._inference_action(state)
-        q1, q2 = self.q1.forward(state, action), self.q2.forward(state, action)
+        q1, q2 = self.q1.estimate_q_value(state, action), self.q2.estimate_q_value(
+            state, action
+        )
         policy_loss = -torch.min(q1, q2).mean()
         return policy_loss
 

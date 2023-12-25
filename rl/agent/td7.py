@@ -1,5 +1,6 @@
 """TD7."""
 
+from typing import Callable
 import numpy as np
 import pandas as pd
 from copy import deepcopy
@@ -11,10 +12,12 @@ import gymnasium as gym
 
 from rl import SAVE_DIR
 from rl.agent.abc import Agent
+from rl.nn.abc import ACTOR, CRITIC, ENCODER
+from rl.nn.utils import annotate_make_nn_td7
 from rl.replay_memory.lap import LAPReplayMemory
 from rl.replay_memory.simple import SimpleReplayMemory
 from rl.sampler import Sampler
-from rl.neural_network import Encoder, SALEActor, SALECritic
+from rl.nn import SALEEncoder, SALEActor, SALECritic
 from rl.utils.annotation import ACTION, BATCH, DONE, STATE, REWARD
 from rl.utils.miscellaneous import (
     convert_dict_as_param,
@@ -40,20 +43,29 @@ class TD7(Agent, Sampler):
         noise_clip: float = 0.5,
         policy_freq: int = 2,
         use_lap: bool = False,
-        **kwargs,
+        make_nn: Callable | None = None,
+        **make_nn_kwargs,
     ) -> None:
         """Initialize."""
-        assert env_id in gym.registry
-        self.action_bias, self.action_scale = get_action_bias_scale(env_id)
         # Make neural network.
-        self.encoder, self.policy, self.q1, self.q2 = self.make_nn(env_id)
+        state_dim, action_dim = get_state_action_dims(env_id)
+        if make_nn is None:
+            self.policy, self.q1, self.q2, self.encoder = self.make_nn(
+                state_dim, action_dim
+            )
+        else:
+            make_nn_kwargs["state_dim"] = state_dim
+            make_nn_kwargs["action_dim"] = action_dim
+            self.policy, self.q1, self.q2, self.encoder = annotate_make_nn_td7(make_nn)(
+                **make_nn_kwargs
+            )
         self.target_policy = deepcopy(self.policy)
         self.target_q1 = deepcopy(self.q1)
         self.target_q2 = deepcopy(self.q2)
         self.fixed_encoder = deepcopy(self.encoder)
         self.fixed_encoder_target = deepcopy(self.encoder)
-
         # Save cconiguration.
+        self.action_bias, self.action_scale = get_action_bias_scale(env_id)
         self.discount_factor = discount_factor
         self.target_update_rate = target_update_rate
         self.target_policy_noise = target_policy_noise
@@ -76,15 +88,14 @@ class TD7(Agent, Sampler):
 
     @staticmethod
     def make_nn(
-        env_id: str, **kwargs
-    ) -> tuple[Encoder, SALEActor, SALECritic, SALECritic, SALECritic]:
+        state_dim: int, action_dim: int
+    ) -> tuple[ACTOR, CRITIC, CRITIC, ENCODER]:
         """Make neurla networks."""
-        state_dim, action_dim = get_state_action_dims(env_id)
-        encoder = Encoder(state_dim, action_dim)
+        encoder = SALEEncoder(state_dim, action_dim)
         policy = SALEActor(state_dim, action_dim)
         q1 = SALECritic(state_dim, action_dim)
         q2 = SALECritic(state_dim, action_dim)
-        return encoder, policy, q1, q2
+        return policy, q1, q2, encoder
 
     def to(self, device: torch.device) -> None:
         """Attach device."""
@@ -146,7 +157,7 @@ class TD7(Agent, Sampler):
     def _inference_action(self, state: STATE) -> ACTION:
         """Only forward with policy."""
         state_embedding = self.fixed_encoder.encode_state(state)
-        action = self.policy.forward(state, state_embedding)
+        action = self.policy.inference_mean(state, state_embedding)
         return action
 
     @staticmethod
@@ -177,19 +188,20 @@ class TD7(Agent, Sampler):
                 -self.noise_clip, self.noise_clip
             )
             next_action = (
-                self.target_policy.forward(next_state, next_state_embedding) + noise
+                self.target_policy.inference_mean(next_state, next_state_embedding)
+                + noise
             ).clamp(-1.0, 1.0)
             next_state_action_embedding = self.fixed_encoder_target.encode_state_action(
                 next_state_embedding, next_action
             )
 
-            next_q1 = self.target_q1.forward(
+            next_q1 = self.target_q1.estimate_q_value(
                 next_state,
                 next_action,
                 next_state_action_embedding,
                 next_state_embedding,
             )
-            next_q2 = self.target_q2.forward(
+            next_q2 = self.target_q2.estimate_q_value(
                 next_state,
                 next_action,
                 next_state_action_embedding,
@@ -209,8 +221,12 @@ class TD7(Agent, Sampler):
                 state_embedding, action
             )
         # calculate q value
-        q1 = self.q1.forward(state, action, state_action_embedding, state_embedding)
-        q2 = self.q2.forward(state, action, state_action_embedding, state_embedding)
+        q1 = self.q1.estimate_q_value(
+            state, action, state_action_embedding, state_embedding
+        )
+        q2 = self.q2.estimate_q_value(
+            state, action, state_action_embedding, state_embedding
+        )
         if self.use_lap:
             td_loss1 = (q1 - q_target).abs()
             td_loss2 = (q2 - q_target).abs()
@@ -248,8 +264,12 @@ class TD7(Agent, Sampler):
             state_embedding, action
         )
 
-        q1 = self.q1.forward(state, action, state_action_embedding, state_embedding)
-        q2 = self.q2.forward(state, action, state_action_embedding, state_embedding)
+        q1 = self.q1.estimate_q_value(
+            state, action, state_action_embedding, state_embedding
+        )
+        q2 = self.q2.estimate_q_value(
+            state, action, state_action_embedding, state_embedding
+        )
         q_value = torch.cat([q1, q2], -1)
         policy_loss = -q_value.mean()
         return policy_loss

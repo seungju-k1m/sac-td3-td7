@@ -11,6 +11,7 @@ from rl.replayer import Replayer
 from rl.utils.cli_utils import common_params_for_rl_alg
 from rl.utils.miscellaneous import convert_dict_as_param
 
+
 @click.command(name="sac", help=SAC_HELP)
 @click.option(
     "--tmp",
@@ -19,13 +20,6 @@ from rl.utils.miscellaneous import convert_dict_as_param
     help="Temperature for balancing exploration and exploitation. \
 If tmp is negative, `auto_tmp_mode` works.",
     show_default=True,
-)
-@click.option(
-    "--action-fn",
-    type=click.STRING,
-    default="ReLU",
-    show_default=True,
-    help="Activation function.",
 )
 @common_params_for_rl_alg
 def cli_run_sac(**kwargs):
