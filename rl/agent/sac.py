@@ -15,7 +15,7 @@ from rl.agent import Agent
 from rl.nn.abc import ACTOR, CRITIC
 from rl.replay_memory import SimpleReplayMemory, LAPReplayMemory, REPLAYMEMORY
 from rl.sampler import Sampler
-from rl.runner import run_rl
+from rl.runner import run_off_policy_rl
 from rl.utils import convert_dict_as_param, get_state_action_dims
 from rl.utils.annotation import ACTION, BATCH, DONE, EPS, STATE, REWARD
 from rl.utils.miscellaneous import fix_seed, get_action_bias_scale
@@ -340,7 +340,7 @@ def run_sac(
         env_id,
         **kwargs,
     )
-    run_rl(
+    run_off_policy_rl(
         env,
         agent,
         replay_buffer,

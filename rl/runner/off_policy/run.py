@@ -96,7 +96,7 @@ def run_train_ops(
     return train_infos
 
 
-def run_rl(
+def run_off_policy_rl(
     env: gym.Env,
     agent: Agent,
     replay_buffer: REPLAYMEMORY,

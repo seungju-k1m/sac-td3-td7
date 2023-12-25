@@ -16,7 +16,7 @@ from rl.nn.abc import ACTOR, CRITIC
 from rl.nn.utils import annotate_make_nn
 from rl.replay_memory import SimpleReplayMemory, LAPReplayMemory
 from rl.sampler import Sampler
-from rl.runner import run_rl
+from rl.runner import run_off_policy_rl
 from rl.nn import MLPActor, MLPCritic
 from rl.utils.annotation import ACTION, BATCH, DONE, STATE, REWARD
 from rl.utils.miscellaneous import (
@@ -279,7 +279,7 @@ def run_td3(
     )
     replay_class = LAPReplayMemory if use_lap else SimpleReplayMemory
     replay_buffer = replay_class(replay_buffer_size, env_id)
-    run_rl(
+    run_off_policy_rl(
         env,
         agent,
         replay_buffer,

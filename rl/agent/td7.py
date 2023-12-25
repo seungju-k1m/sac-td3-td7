@@ -25,7 +25,7 @@ from rl.utils.miscellaneous import (
     get_state_action_dims,
     get_action_bias_scale,
 )
-from rl.runner import run_rl, run_rl_w_ckpt
+from rl.runner import run_off_policy_rl, run_off_policy_rl_w_ckpt
 
 
 class TD7(Agent, Sampler):
@@ -377,7 +377,7 @@ def run_td7(
         **kwargs,
     )
     if without_policy_checkpoint:
-        run_rl(
+        run_off_policy_rl(
             env,
             agent,
             replay_buffer,
@@ -388,7 +388,7 @@ def run_td7(
             **kwargs,
         )
     else:
-        run_rl_w_ckpt(
+        run_off_policy_rl_w_ckpt(
             env,
             agent,
             replay_buffer,

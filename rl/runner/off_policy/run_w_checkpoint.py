@@ -9,14 +9,14 @@ from tqdm import tqdm
 from gymnasium.wrappers.record_video import RecordVideo
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
 
+from .run import log_train_infos, run_train_ops, test_agent
 from rl.agent.abc import Agent
 from rl.replay_memory.base import REPLAYMEMORY
 from rl.rollout import Rollout
-from rl.runner.run import log_train_infos, run_train_ops, test_agent
 from rl.utils import setup_logger
 
 
-def run_rl_w_ckpt(
+def run_off_policy_rl_w_ckpt(
     env: gym.Env,
     agent: Agent,
     replay_buffer: REPLAYMEMORY,
