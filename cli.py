@@ -2,7 +2,6 @@ import click
 from click_repl import register_repl
 
 from rl.cli import cli_run_sac, cli_run_td3, cli_run_td7, cli_replay_agent
-from rl.docs import RL_HELP
 
 
 @click.group()
@@ -10,9 +9,33 @@ def main():
     """CLI."""
 
 
-@click.group(help=RL_HELP)
+@click.group()
 def rl() -> None:
-    """Off-Policy RL: SAC, TD3 and TD7."""
+    """
+    Run Off-Policy Reinforcement Learning Algorithms.
+
+
+    Examples:
+
+        # I recommend reading docstring of each command.
+
+        >>> rl sac --help
+
+        # Run default setting
+
+        >>> rl sac
+
+        # You can load hyper-parameter via *.yaml
+
+        >> rl sac -c config/common.yaml
+
+        # You can specify the run name.
+
+        >>> rl sac --run-name Ant@Seed42
+
+        # You want to record the video while training,
+
+        >>> rl sac --record-video"""
 
 
 rl.add_command(cli_run_sac)

@@ -1,5 +1,6 @@
 """Utility code related to CLI."""
 
+import functools
 from typing import Callable
 import click
 import yaml
@@ -94,6 +95,7 @@ def common_params_for_rl_alg(func) -> Callable:
         is_flag=True,
     )
     @click.option("--seed", type=click.INT, default=42, show_default=True, help="Seed.")
+    @functools.wraps(func)
     def wrapper(*args, **kwargs) -> Callable:
         return func(*args, **kwargs)
 
