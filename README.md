@@ -41,7 +41,7 @@ ______________________________________________________________________
 ## Example codes
 
 ```
-# There are two ways.
+# There are three ways.
 # First, Use cli
 make cli
 
@@ -55,7 +55,10 @@ make cli
 >>> # ctrl+D to exit cli mode.
 
 # Second, run python file.
-python cli.py td7 Ant-v4 ant@seed111 -seed 1111
+python cli.py rl td7 Ant-v4 ant@seed111 -seed 1111
+
+# Third, reproduce all the experiments: experiments with 4 different seeds corresponding to each Mujoco Env.
+source run.sh
 ```
 
 ______________________________________________________________________
