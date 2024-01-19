@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from pprint import pprint
 import random
@@ -32,8 +33,12 @@ class Replayer:
         weight_name = "ckpt.pkl" if use_ckpt_model else "best.pkl"
 
         # Load configuration file.
-        with open(root_dir / "config.yaml") as file_handler:
-            config: dict[str, Any] = yaml.load(file_handler, yaml.FullLoader)
+        if (root_dir / "config.yaml").is_file():
+            with open(root_dir / "config.yaml") as file_handler:
+                config: dict[str, Any] = yaml.load(file_handler, yaml.FullLoader)
+        else:
+            with open(root_dir / "config.json") as file_handler:
+                config: dict[str, Any] = json.load(file_handler)
 
         # Load Agent.
         rl_alg: str = config["rl_alg"]
