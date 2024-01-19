@@ -65,7 +65,7 @@ class SAC(Agent, Sampler):
             policy_lr, critic_lr
         )
         if self.auto_tmp_mode:
-            self.target_entropy = action_dim
+            self.target_entropy = -action_dim
 
         # Store hyper-parameter used during training.
         self.device = torch.device("cpu")
@@ -230,7 +230,7 @@ class SAC(Agent, Sampler):
 
         # Calcuate tmp loss.
         tmp_obj = (
-            torch.mean(self.tmp.exp() * (-log_pi.detach() + self.target_entropy))
+            torch.mean(self.tmp.exp() * (-log_pi.detach() - self.target_entropy))
             if self.auto_tmp_mode
             else 0.0
         )
