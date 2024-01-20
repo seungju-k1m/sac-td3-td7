@@ -13,7 +13,7 @@ import gymnasium as gym
 from rl import SAVE_DIR
 from rl.agent import Agent
 from rl.nn.abc import ACTOR, CRITIC
-from rl.nn.utils import annotate_make_nn
+from rl.nn.utils import annotate_make_nn, calculate_grad_norm
 from rl.replay_memory import SimpleReplayMemory, LAPReplayMemory
 from rl.sampler import Sampler
 from rl.runner import run_rl
@@ -231,6 +231,7 @@ class TD3(Agent, Sampler):
             policy_loss = self._policy_train_ops(**batch)
             policy_loss.backward()
             info["train/policy"] = float(policy_loss.cpu().detach().numpy())
+            info["norm/policy"] = calculate_grad_norm(self.policy)
 
             self.optim_policy.step()
             self.zero_grad()
@@ -272,6 +273,7 @@ def run_td3(
 
     # Make envs
     env = gym.make(env_id)
+    env.reset(seed=seed)
     agent = TD3(
         env_id,
         use_lap=use_lap,
