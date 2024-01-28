@@ -67,8 +67,6 @@ ______________________________________________________________________
 
 ## Experiment Results
 
-![learning_curve](./data/learning_curve.png)
-
 We compared the results of our Mujoco benchmark with the paper in two aspects: performance and training stability. Performance was measured as the average value across eight different seeds, while training stability was assessed by recording the agent's intermediate performance throughout the training process for each seed and visualizing these trendsation based on seeds and performance evolution during the training process.
 
 | Environment    | Timesteps    | TD7(Ours)                    | TD7(Paper)                   | TD3(Ours)                     | SAC (Ours)                   |
