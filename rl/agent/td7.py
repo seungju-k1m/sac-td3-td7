@@ -384,7 +384,6 @@ def run_td7(
             base_dir,
             show_progressbar=show_progressbar,
             record_video=record_video,
-            seed=seed,
             **kwargs,
         )
     else:
@@ -393,7 +392,6 @@ def run_td7(
             agent,
             replay_buffer,
             base_dir,
-            seed=seed,
             record_video=record_video,
             show_progressbar=show_progressbar,
             **kwargs,

@@ -106,7 +106,7 @@ def run_rl(
     batch_size: int = 256,
     eval_period: int = 10_000,
     record_video: bool = True,
-    seed: int = 42,
+    eval_env: None | gym.Env = None,
     **kwargs,
 ) -> None:
     """Run SAC Algorithm."""
@@ -117,8 +117,9 @@ def run_rl(
 
     # Set Rollout
     render_mode = "rgb_array" if record_video else None
-    eval_env = gym.make(env.spec, render_mode=render_mode)
-    eval_env.reset(seed=seed + 100)
+    if eval_env is None:
+        eval_env = gym.make(env.spec, render_mode=render_mode)
+        eval_env.reset(seed=42)
 
     env = RecordEpisodeStatistics(env, 1)
     eval_env = RecordEpisodeStatistics(eval_env, 16)
