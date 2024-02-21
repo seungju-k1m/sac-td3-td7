@@ -31,6 +31,8 @@ def run_rl_w_ckpt(
     record_video: bool = True,
     use_gpu: bool = False,
     eval_env: None | gym.Env = None,
+    n_episodes: int = 16,
+    deterministic: bool = True,
     **kwargs,
 ) -> None:
     """Run SAC Algorithm."""
@@ -47,14 +49,14 @@ def run_rl_w_ckpt(
         eval_env.reset(seed=42)
 
     env = RecordEpisodeStatistics(env, 1)
-    eval_env = RecordEpisodeStatistics(eval_env, 16)
+    eval_env = RecordEpisodeStatistics(eval_env, n_episodes)
     if record_video:
         video_dir = base_dir / "video"
         video_dir.mkdir(exist_ok=True, parents=True)
 
         # Only record last episode when evaluation.
         def epi_trigger(x) -> bool:
-            if x % 16 == 0:
+            if x % n_episodes == 0:
                 return True
             else:
                 False
@@ -85,7 +87,7 @@ def run_rl_w_ckpt(
     # Run RL
     start_logging = True
     best_return = -1e8
-    test_info = test_agent(eval_env, ckpt_agent, True)
+    test_info = test_agent(eval_env, ckpt_agent, deterministic, n_episodes)
     current_max_episode_per_one_ckpt = 1
     timestep = 0
 
@@ -110,7 +112,9 @@ def run_rl_w_ckpt(
 
                 # Evaluate ckpt agent.
                 if train_flag and timestep % eval_period == 0:
-                    test_info = test_agent(eval_env, ckpt_agent, deterministic=True)
+                    test_info = test_agent(
+                        eval_env, ckpt_agent, deterministic, n_episodes
+                    )
                     if test_info["perf/mean"] > best_return:
                         best_return = test_info["perf/mean"]
                         ckpt_agent.save(base_dir / "best.pkl")
