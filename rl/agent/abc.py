@@ -37,11 +37,14 @@ class Agent(ABC):
 
     def save(self, path: PATH) -> None:
         """Save the algorithm."""
+        current_device = self.device
+        self = self.to(torch.device("cpu"))
         path = Path(path) if isinstance(path, str) else path
         dir = path.parent
         os.makedirs(dir, exist_ok=True)
         with open(path, "wb") as file_handler:
             pickle.dump(self, file_handler)
+        self = self.to(current_device)
 
     @staticmethod
     def load(path: PATH) -> AGENT:

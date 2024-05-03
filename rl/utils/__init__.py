@@ -7,6 +7,7 @@ from .miscellaneous import (
     get_state_action_dims,
     NoStdStreams,
 )
+from .make_env import make_env
 
 __all__ = [
     "convert_dict_as_param",
@@ -15,4 +16,5 @@ __all__ = [
     "get_state_action_dims",
     "NoStdStreams",
     "fix_seed",
+    "make_env",
 ]

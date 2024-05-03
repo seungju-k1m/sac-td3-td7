@@ -5,14 +5,13 @@ import random
 from typing import Any
 from gymnasium.wrappers.record_video import RecordVideo
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
-import gymnasium as gym
 import numpy as np
 import torch
 import yaml
 
 from rl.agent.abc import AGENT
 from rl import agent as rl_agent
-from rl.utils import NoStdStreams
+from rl.utils import NoStdStreams, make_env
 
 
 class Replayer:
@@ -54,8 +53,9 @@ class Replayer:
 
         # Make env,
         env_id: str = config["env_id"]
+        env = make_env(env_id, render_mode="rgb_array")
         self.env = RecordVideo(
-            gym.make(env_id, render_mode="rgb_array"),
+            env,
             str(video_dir),
             episode_trigger=lambda x: True,
         )

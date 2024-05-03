@@ -8,7 +8,6 @@ from copy import deepcopy
 from datetime import datetime
 
 import torch
-import gymnasium as gym
 
 from rl import SAVE_DIR
 from rl.agent import Agent
@@ -18,6 +17,7 @@ from rl.replay_memory import SimpleReplayMemory, LAPReplayMemory
 from rl.sampler import Sampler
 from rl.runner import run_rl
 from rl.nn import MLPActor, MLPCritic
+from rl.utils import make_env
 from rl.utils.annotation import ACTION, BATCH, DONE, STATE, REWARD
 from rl.utils.miscellaneous import (
     convert_dict_as_param,
@@ -272,7 +272,7 @@ def run_td3(
     fix_seed(seed)
 
     # Make envs
-    env = gym.make(env_id)
+    env = make_env(env_id)
     env.reset(seed=seed)
     agent = TD3(
         env_id,

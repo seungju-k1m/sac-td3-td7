@@ -7,7 +7,6 @@ from datetime import datetime
 
 import yaml
 import torch
-import gymnasium as gym
 from torch import nn
 
 from rl import SAVE_DIR
@@ -16,7 +15,7 @@ from rl.nn.abc import ACTOR, CRITIC
 from rl.replay_memory import SimpleReplayMemory, LAPReplayMemory, REPLAYMEMORY
 from rl.sampler import Sampler
 from rl.runner import run_rl
-from rl.utils import convert_dict_as_param, get_state_action_dims
+from rl.utils import convert_dict_as_param, get_state_action_dims, make_env
 from rl.utils.annotation import ACTION, BATCH, DONE, EPS, STATE, REWARD
 from rl.utils.miscellaneous import fix_seed, get_action_bias_scale
 from rl.nn import MLPActor, MLPCritic, annotate_make_nn
@@ -330,7 +329,7 @@ def run_sac(
     fix_seed(seed)
 
     # Make envs.
-    env = gym.make(env_id)
+    env = make_env(env_id)
     env.reset(seed=seed)
 
     replay_class = LAPReplayMemory if use_lap else SimpleReplayMemory

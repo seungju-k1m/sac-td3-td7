@@ -51,6 +51,8 @@ def get_state_action_dims(env_id: str) -> tuple[int, int]:
     """Return state and action dimension."""
     assert env_id in gym.registry
     env = gym.make(env_id)
+    if "dm_control" in env_id:
+        env = gym.wrappers.FlattenObservation(env)
     return env.observation_space.shape[0], env.action_space.shape[0]
 
 

@@ -8,7 +8,6 @@ from datetime import datetime
 
 import yaml
 import torch
-import gymnasium as gym
 
 from rl import SAVE_DIR
 from rl.agent.abc import Agent
@@ -18,6 +17,7 @@ from rl.replay_memory.lap import LAPReplayMemory
 from rl.replay_memory.simple import SimpleReplayMemory
 from rl.sampler import Sampler
 from rl.nn import SALEEncoder, SALEActor, SALECritic
+from rl.utils import make_env
 from rl.utils.annotation import ACTION, BATCH, DONE, STATE, REWARD
 from rl.utils.miscellaneous import (
     convert_dict_as_param,
@@ -365,7 +365,7 @@ def run_td7(
     # Set Seed.
     fix_seed(seed)
     # Make envs
-    env = gym.make(env_id)
+    env = make_env(env_id)
     env.reset(seed=seed)
 
     replay_class = SimpleReplayMemory if without_lap else LAPReplayMemory
