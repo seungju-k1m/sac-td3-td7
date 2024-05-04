@@ -27,7 +27,7 @@ def make_env(env_id: str, **kwargs) -> gym.Env:
     """Make ENV."""
     env = gym.make(env_id, **kwargs)
     if "dm_control" in env_id:
-        env = gym.wrappers.FlattenObservation(env)
-        env = gym.wrappers.TimeLimit(env, 1000)
         env = RepeatedActionWrapper(env)
+        env = gym.wrappers.TimeLimit(env, 500)
+        env = gym.wrappers.FlattenObservation(env)
     return env
