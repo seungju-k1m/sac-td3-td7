@@ -80,7 +80,7 @@ class TD3(Agent, Sampler):
         q2 = MLPCritic(state_dim, action_dim)
         return policy, q1, q2
 
-    def to(self, device: torch.device) -> None:
+    def to(self, device: torch.device) -> "TD3":
         """Attach device."""
         self.policy = self.policy.to(device)
         self.target_policy = self.policy.to(device)
@@ -89,6 +89,7 @@ class TD3(Agent, Sampler):
         self.target_q1 = self.target_q1.to(device)
         self.target_q2 = self.target_q2.to(device)
         self.device = device
+        return self
 
     def load_state_dict(self, agent: "TD3") -> None:
         """Load state dict."""

@@ -84,7 +84,7 @@ class SAC(Agent, Sampler):
         critic02 = MLPCritic(state_dim, action_dim)
         return policy, critic01, critic02
 
-    def to(self, device: torch.device) -> None:
+    def to(self, device: torch.device) -> "SAC":
         """Attatch device."""
         self.q1 = self.q1.to(device)
         self.q2 = self.q2.to(device)
@@ -96,6 +96,7 @@ class SAC(Agent, Sampler):
         if self.auto_tmp_mode:
             self.tmp = self.tmp.to(device)
         self.device = device
+        return self
 
     def load_state_dict(self, agent: "SAC") -> None:
         """Load state dict."""

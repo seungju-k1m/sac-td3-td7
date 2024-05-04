@@ -109,8 +109,9 @@ class TD7(Agent, Sampler):
         self.fixed_encoder = self.fixed_encoder.to(device)
         self.fixed_encoder_target = self.fixed_encoder_target.to(device)
         self.device = device
+        return self
 
-    def load_state_dict(self, agent: "TD7") -> None:
+    def load_state_dict(self, agent: "TD7") -> "TD7":
         """Load state dict."""
         self.q1.load_state_dict(agent.q1.state_dict())
         self.q2.load_state_dict(agent.q2.state_dict())
