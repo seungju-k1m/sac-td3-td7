@@ -53,7 +53,13 @@ class Replayer:
 
         # Make env,
         env_id: str = config["env_id"]
-        env = make_env(env_id, render_mode="rgb_array")
+        if "dm_control" in env_id:
+            env = make_env(
+                env_id, render_mode="rgb_array", render_kwargs=dict(camera_id=0)
+            )
+        else:
+            env = make_env(env_id, render_mode="rgb_array")
+
         self.env = RecordVideo(
             env,
             str(video_dir),
