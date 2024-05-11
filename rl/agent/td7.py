@@ -97,7 +97,7 @@ class TD7(Agent, Sampler):
         q2 = SALECritic(state_dim, action_dim)
         return policy, q1, q2, encoder
 
-    def to(self, device: torch.device) -> None:
+    def to(self, device: torch.device) -> "TD7":
         """Attach device."""
         self.policy = self.policy.to(device)
         self.target_policy = self.policy.to(device)
@@ -346,7 +346,7 @@ def run_td7(
     show_progressbar: bool = True,
     **kwargs,
 ) -> None:
-    """Run Heating Environment."""
+    """Run TD7 Algorithm."""
     params = convert_dict_as_param(deepcopy(locals()))
     params["rl_alg"] = "TD7"
     print("-" * 5 + "[TD7]" + "-" * 5)
