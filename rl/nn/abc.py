@@ -44,3 +44,11 @@ class ENCODER(ABC, nn.Module):
     def encode_state_action(self, *args, **kwargs) -> torch.Tensor:
         """Encode state."""
         pass
+
+
+class WORLDMODEL(ENCODER):
+    """Abstract Class for World Model."""
+
+    def predict_reward(self, *args, **kwargs) -> torch.Tensor:
+        """Predict reward."""
+        pass

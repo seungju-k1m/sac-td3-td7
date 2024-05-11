@@ -1,5 +1,6 @@
 """Rollout."""
 from copy import deepcopy
+from typing import Any
 
 from gymnasium.wrappers.record_episode_statistics import RecordEpisodeStatistics
 from rl.replay_memory.base import REPLAYMEMORY
@@ -16,6 +17,7 @@ class Rollout:
         self,
         env: RecordEpisodeStatistics,
         replay_buffer: REPLAYMEMORY,
+        rollout_kwargs: None | dict[str, Any] = None,
     ):
         """Initialize."""
         self.env = env
@@ -25,6 +27,8 @@ class Rollout:
         self.need_reset: bool = True
         self.n_episode: int = 0
         self.obs: STATE
+        self.rollout_kwargs = rollout_kwargs or {}
+        self._is_first_obs = False
 
     def set_sampler(self, sampler: SAMPLER) -> None:
         """Set sampler."""
@@ -39,7 +43,10 @@ class Rollout:
         if self.need_reset:
             self.need_reset = False
             self.obs = self.env.reset()[0]
-        action = self.sampler.sample(self.obs)
+            self._is_first_obs = True
+        action = self.sampler.sample(
+            self.obs, **self.rollout_kwargs, is_first_obs=self._is_first_obs
+        )
         next_obs, reward, terminated, truncated, info = self.env.step(action)
         done = truncated or terminated
         self.replay_buffer.append(
@@ -47,4 +54,6 @@ class Rollout:
         )
         self.obs = next_obs
         self.need_reset = done
+        if self._is_first_obs:
+            self._is_first_obs = False
         return done

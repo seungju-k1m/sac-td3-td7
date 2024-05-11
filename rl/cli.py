@@ -104,6 +104,27 @@ def cli_run_td3(**kwargs):
     help="Use GPU.",
     is_flag=True,
 )
+@click.option(
+    "--exploration-noise",
+    type=click.FLOAT,
+    default=0.1,
+    show_default=True,
+    help="Exploration noise.",
+)
+@click.option(
+    "--target-policy-noise",
+    type=click.FLOAT,
+    default=0.2,
+    show_default=True,
+    help="Noise for Target Network.",
+)
+@click.option(
+    "--max-episodes-per-single-ckpt",
+    type=click.INT,
+    default=20,
+    show_default=True,
+    help="# of episodes for updating single ckpt.",
+)
 @common_params_for_rl_alg
 def cli_run_td7(**kwargs):
     """

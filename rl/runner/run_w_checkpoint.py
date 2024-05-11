@@ -87,6 +87,7 @@ def run_rl_w_ckpt(
     start_logging = True
     best_return = -1e8
     test_info = test_agent(eval_env, ckpt_agent, deterministic, n_episodes)
+    # test_info = test_agent(eval_env, ckpt_agent, False, n_episodes)
     current_max_episode_per_one_ckpt = 1
     timestep = 0
 
@@ -124,7 +125,6 @@ def run_rl_w_ckpt(
             if train_flag:
                 sum_episode_length += episode_length
             current_agent_min_return = min(episode_return, current_agent_min_return)
-
             # If minimum performance of agnet is lower than best return,
             # collecting data with current agent stops.
             if current_agent_min_return < best_min_return:

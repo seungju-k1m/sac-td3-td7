@@ -2,6 +2,7 @@
 
 from logging import Logger
 from pathlib import Path
+from typing import Any
 
 import torch
 import gymnasium as gym
@@ -13,7 +14,6 @@ from tqdm import tqdm
 from rl.agent.abc import Agent
 from rl.replay_memory.base import REPLAYMEMORY
 from rl.rollout import Rollout
-from rl.utils import NoStdStreams
 from rl.utils.miscellaneous import setup_logger
 
 
@@ -25,23 +25,29 @@ def test_agent(
     n_episodes: int = 16,
 ) -> dict[str, float]:
     """Test agent."""
-    with NoStdStreams():
-        for idx in range(n_episodes):
-            obs, _ = env.reset()
-            done = False
-            while not done:
-                action = agent.sample(obs, deterministic)
-                next_obs, _, truncated, terminated, _ = env.step(action)
-                obs = next_obs
-                done = truncated or terminated
-        mean = sum(env.return_queue) / len(env.return_queue)
-        min_return, max_return = min(env.return_queue), max(env.return_queue)
-        info = {
-            "perf/mean": mean[0],
-            "perf/min": min_return[0],
-            "perf/max": max_return[0],
-        }
-        return info
+    # with NoStdStreams():
+    for idx in range(n_episodes):
+        obs, _ = env.reset()
+        done = False
+        is_fist_obs = True
+        while not done:
+            action = agent.sample(obs, deterministic, is_first_obs=is_fist_obs)
+            next_obs, _, truncated, terminated, _ = env.step(action)
+            obs = next_obs
+            done = truncated or terminated
+            if is_fist_obs:
+                is_fist_obs = False
+    mean = sum(env.return_queue) / len(env.return_queue)
+    min_return, max_return = min(env.return_queue), max(env.return_queue)
+    info = {
+        "perf/mean": mean[0],
+        "perf/min": min_return[0],
+        "perf/max": max_return[0],
+    }
+    import pdb
+
+    pdb.set_trace()
+    return info
 
 
 def _calculate_mean_with_dirty_eles(eles: list[float | None]) -> float:
@@ -107,6 +113,7 @@ def run_rl(
     eval_period: int = 10_000,
     record_video: bool = True,
     eval_env: None | gym.Env = None,
+    rollout_kwargs: None | dict[str, Any] = None,
     **kwargs,
 ) -> None:
     """Run SAC Algorithm."""
